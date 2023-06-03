@@ -1,61 +1,157 @@
-// Define your storage data here
-export interface Storage {} // eslint-disable-line
+import { getBucket } from '@extend-chrome/storage';
 
-export function getStorageData(): Promise<Storage> {
-  return new Promise((resolve, reject) => {
-    chrome.storage.sync.get(null, (result) => {
-      if (chrome.runtime.lastError) {
-        return reject(chrome.runtime.lastError);
-      }
+export class Repo {
+  readonly owner: string;
+  readonly name: string;
+  /* User setting from the Options page: */
+  monitoringEnabled: boolean;
+  /* monitoringEnabled value during the last sync: */
+  lastSyncAttempted: boolean;
+  // TODO: replace with a last successful sync timestamp? Then it would make sense to show a yellow icon
+  // if there was no successful sync in the last 10 minutes, for example.
+  /* Whether the last attempt to sync (last time when monitoringEnabled was true) succeeded or not: */
+  lastAttemptSuccess: boolean;
+  /* The last sync attempt error regardless when it was and whether the last attempt was successful or not: */
+  lastSyncError: string;
+  reviewsRequested: ReviewRequested[];
+  // TODO: maybe add support for when somebody submits you a new review, mention, etc.?
 
-      return resolve(result as Storage);
-    });
+  constructor(
+      owner: string,
+      name: string,
+      monitoringEnabled = true,
+      lastSyncAttempted: boolean = undefined,
+      lastAttemptSuccess: boolean = undefined,
+      lastSyncError: string = undefined,
+      reviewsRequested: ReviewRequested[] = [],
+  ) {
+    this.owner = owner;
+    this.name = name;
+    this.monitoringEnabled = monitoringEnabled;
+    this.lastSyncAttempted = lastSyncAttempted;
+    this.lastAttemptSuccess = lastAttemptSuccess;
+    this.lastSyncError = lastSyncError;
+    this.reviewsRequested = reviewsRequested;
+  }
+
+  static of(repo: any): Repo {
+    return new Repo(
+        repo.owner,
+        repo.name,
+        repo.monitoringEnabled,
+        repo.lastSyncAttempted,
+        repo.lastAttemptSuccess,
+        repo.lastSyncError,
+        repo.reviewsRequested,
+    );
+  }
+
+  static fromFullName(
+      fullName: string,
+      monitoringEnabled = true,
+  ): Repo {
+    const p = fullName.indexOf("/");
+    if (p < 0) {
+      window.alert(`Repo name should contain symbol '/'.`);
+      throw new Error(`Repo name should contain symbol but found ${fullName}.`);
+    }
+
+    return new Repo(
+        fullName.substring(0, p),
+        fullName.substring(p + 1),
+        monitoringEnabled,
+    );
+  }
+
+  fullName(): string {
+    return this.owner + "/" + this.name;
+  }
+}
+
+class RepoList {
+  repos: Repo[];
+
+  constructor(repos: Repo[]) {
+    this.repos = repos;
+  }
+}
+
+export class ReviewRequested {
+  pr: PR;
+  firstTimeObservedUnixMillis: number;
+
+  constructor(
+      pr: PR,
+      firstTimeObservedUnixMillis: number,
+  ) {
+    this.pr = pr;
+    this.firstTimeObservedUnixMillis = firstTimeObservedUnixMillis;
+  }
+}
+
+export class PR {
+  url: string;
+  name: string;
+
+  constructor(
+      url: string,
+      name: string,
+  ) {
+    this.url = url;
+    this.name = name;
+  }
+}
+
+export class GitHubUser {
+  id: number;
+  token: string;
+
+  constructor(
+      id: number,
+      token: string,
+  ) {
+    this.id = id;
+    this.token = token;
+  }
+}
+
+export async function storeReposMap(reposByFullName: Map<string, Repo>) {
+  const reposStore = getBucket<RepoList>('reposStore', 'sync');
+  const repos = [] as Repo[];
+  reposByFullName.forEach((repo: Repo) => {
+    repos.push(repo);
+  });
+  return reposStore.set(new RepoList(repos));
+}
+
+export async function storeRepos(repos: Repo[]) {
+  const reposStore = getBucket<RepoList>('reposStore', 'sync');
+  return reposStore.set(new RepoList(repos));
+}
+
+export async function getReposByFullName(): Promise<Map<string, Repo>> {
+  return getRepos().then(repos => {
+    const result = new Map<string, Repo>();
+    repos.forEach(repo => result.set(repo.fullName(), repo));
+    return result;
   });
 }
 
-export function setStorageData(data: Storage): Promise<void> {
-  return new Promise((resolve, reject) => {
-    chrome.storage.sync.set(data, () => {
-      if (chrome.runtime.lastError) {
-        return reject(chrome.runtime.lastError);
-      }
-
-      return resolve();
-    });
-  });
+export async function getRepos(): Promise<Repo[]> {
+  return getBucket<RepoList>('reposStore', 'sync').get()
+      // storage returns an Object, not a Repo...
+      .then(l => l.repos.map(v => Repo.of(v)));
 }
 
-export function getStorageItem<Key extends keyof Storage>(
-  key: Key,
-): Promise<Storage[Key]> {
-  return new Promise((resolve, reject) => {
-    chrome.storage.sync.get([key], (result) => {
-      if (chrome.runtime.lastError) {
-        return reject(chrome.runtime.lastError);
-      }
-
-      return resolve((result as Storage)[key]);
-    });
-  });
+export async function storeGitHubUser(user: GitHubUser) {
+  const store = getBucket<GitHubUser>('gitHubUser', 'sync');
+  if (!user) {
+    return store.clear();
+  }
+  return store.set(user);
 }
 
-export function setStorageItem<Key extends keyof Storage>(
-  key: Key,
-  value: Storage[Key],
-): Promise<void> {
-  return new Promise((resolve, reject) => {
-    chrome.storage.sync.set({ [key]: value }, () => {
-      if (chrome.runtime.lastError) {
-        return reject(chrome.runtime.lastError);
-      }
-
-      return resolve();
-    });
-  });
-}
-
-export async function initializeStorageWithDefaults(defaults: Storage) {
-  const currentStorageData = await getStorageData();
-  const newStorageData = Object.assign({}, defaults, currentStorageData);
-  await setStorageData(newStorageData);
+export async function getGitHubUser() : Promise<GitHubUser> {
+  const store = getBucket<GitHubUser>('gitHubUser', 'sync');
+  return store.get();
 }

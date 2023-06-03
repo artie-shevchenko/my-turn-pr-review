@@ -9,14 +9,39 @@
 </head>
 
 <body>
-  <div class="container">
-    <h1>Hello World!</h1>
+<div id="auth" style="display:none">
+  <div id="error" style="display:none"></div>
+  <h2>Register your GitHub token</h2>
+  <form id="tokenForm">
+    <a href="https://github.com/settings/tokens">
+      1. Generate a GitHub token</a> with the following scopes: read:org, read:project, repo.<br/>
+      2. Copy the token string.<br/>
+      3. Optionally, if there is a "Configure SSO" select box authorize access to all the necessary organizations.<br/>
+      4. Paste in the token and click submit:
+    <input type="text" id="newToken" name=newToken">
+    <button type="submit">Submit</button>
+  </form>
+</div>
+<div id="main" class="container" style="display:none">
+  <table id="prTable">
+    <tr class="prTableHeader">
+      <td class="repoColumn">Repo</td>
+      <td class="prTitleColumn">Pull Request</td>
+      <td>Hours you've ignored it for*</td>
+    </tr>
+  </table>
+  <span class="footnotes">&nbsp;* From the plugin's perspective. Please upvote
+    <a href="https://github.com/orgs/community/discussions/28928" target="_blank">this GitHub API request<a/>.
+  </span>
 
-    <p>Edit <u>static/popup.html</u> to change this page!</p>
-
-    <button id="go-to-options" class="button" style="margin-top: 2rem;">Open options page</button>
+  <div class="theRest">
+    <div id="repoWarn" class="repoWarn"></div>
+    <div id="repoList"></div>
+    To change the set of repos monitored:
+    <button id="go-to-options" class="button" style="margin-top: 2rem;">Options...</button>
   </div>
+</div>
 
-  <script src="popup.js"></script>
+<script src="popup.js"></script>
 </body>
 </html>

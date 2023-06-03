@@ -9,12 +9,22 @@
 </head>
 
 <body>
-  <div class="container">
-    <h1>Options page</h1>
-    
-    <p>Edit <u>static/options.html</u> to change this page!</p>
+<div class="container">
+  <div id="main">
+    <h1>Choose GitHub repositories to watch for:</h1>
+    <form id="repoForm">
+    <span id="repoList">
+    </span>
+      <h1>Add new repo to the list above:</h1>
+      <label for="newRepo">New repo:</label>
+      <input type="text" id="newRepo" name="newRepo">
+      <button type="submit">Add</button>
+    </form>
+    <h1>Add new repo to the list above:</h1>
+    <button id ="deleteToken">Delete GitHub token</button>
   </div>
-  
-  <script src="options.js"></script>
+</div>
+
+<script src="options.js"></script>
 </body>
 </html>

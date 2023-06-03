@@ -1,15 +1,44 @@
-@import 'common.scss';
-
+body {
+  background-color: #fefaa1;
+  margin: 0;
+}
 .container {
-  min-height: 200px;
-  min-width: 300px;
+  width: 600px;
+}
+#auth {
+  width: 600px;
+  margin: 5px;
+}
+table, th, td {
+  border-style: solid;
+  border-width: 1px;
+  border-color: lightgray;
+}
 
-  padding: 2rem;
-
-  display: flex;
-
-  flex-direction: column;
-
-  align-items: center;
-  justify-content: center;
+table {
+  table-layout: fixed;
+  width: 600px;
+  border-collapse: collapse;
+}
+td {
+  padding: 4px;
+}
+.prTableHeader {
+  font-weight: bold;
+}
+.repoWarn {
+  font-weight: bold;
+  padding-bottom: 4px;
+}
+.theRest {
+  padding: 10px;
+}
+.repoColumn {
+  width: 20%;
+}
+.prTitleColumn {
+  width: 60%;
+}
+.footnotes {
+  font-size: smaller;
 }

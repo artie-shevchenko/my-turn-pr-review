@@ -3,10 +3,6 @@ Get started with Chrome extensions development using webpack, TypeScript, Sass, 
 
 [!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/sszczep)
 
-## Announcements
-
-*Nothing to see here yet.*
-
 ## Features
 
 Chrome Extension Webpack is a simple boilerplate for fast extension development. It helps writing modern TypeScript code with SCSS support. 
@@ -74,67 +70,6 @@ There are two available types of options pages: `full page` and `embedded`. By d
 
 Read more [here](https://developer.chrome.com/docs/extensions/mv3/options/).
 
-### Storage
-
-I have prepared a bunch of helper functions to simplify storage usage:
-
-```typescript
-function getStorageData(): Promise<Storage> {...}
-
-// Example usage
-const storageData = await getStorageData();
-console.log(storageData);
-```
-
-```typescript
-function setStorageData(data: Storage): Promise<void> {...}
-
-// Example usage
-const newStorageData = { visible: true };
-await setStorageData(newStorageData);
-```
-
-```typescript
-function getStorageItem<Key extends keyof Storage>(
-  key: Key,
-): Promise<Storage[Key]> {...}
-
-// Example usage
-const isVisible = await getStorageItem('visible');
-console.log(isVisible);
-```
-
-```typescript
-function setStorageItem<Key extends keyof Storage>(
-  key: Key,
-  value: Storage[Key],
-): Promise<void> {...}
-
-// Example usage
-await setStorageItem('visible', true);
-```
-
-```typescript
-async function initializeStorageWithDefaults(defaults: Storage) {...}
-
-// If `visible` property is already set in the storage, it won't be replaced.
-// This function might be used in `onInstalled` event in service worker
-// to set default storage values on extension's initialization.
-const defaultStorageData = { visible: false };
-await initializeStorageWithDefaults(defaultStorageData);
-```
-
-All of the above functions use `Storage` interface which guarantees type safety. In the above use-case scenario, it could be declared as:
-
-```typescript
-interface Storage {
-  visible: boolean;
-}
-```
-
-**IMPORTANT!** Don't forget to change the interface according to your needs.
-
-*Check `src/storage.ts` for implementation details.*
 
 ### Content scripts
 
