@@ -1,4 +1,4 @@
-import { haveOpenReviewRequest } from './github';
+import { sync } from './github';
 import {
   storeRepos,
   getGitHubUser,
@@ -21,7 +21,7 @@ setInterval(function() {
   // This also keeps the worker alive, as recommended by
   // https://developer.chrome.com/blog/longer-esw-lifetimes/
   getGitHubUser().then(gitHubUser => {
-    sync(gitHubUser);
+    syncWithGitHub(gitHubUser);
   }).catch(e => {
     console.error("Sync failed", e);
   });
@@ -31,7 +31,7 @@ setInterval(function() {
 chrome.storage.onChanged.addListener(() => {
   console.log('Triggering sync as repo set may be changed.');
   getGitHubUser().then(gitHubUser => {
-    sync(gitHubUser);
+    syncWithGitHub(gitHubUser);
   }).catch(e => {
     console.error("Sync failed", e);
   });
@@ -39,7 +39,7 @@ chrome.storage.onChanged.addListener(() => {
 
 let syncInProgress = false;
 
-export async function sync(gitHubUser) {
+export async function syncWithGitHub(gitHubUser) {
   if (gitHubUser && gitHubUser.token) {
     octokit = new Octokit({
       auth: gitHubUser.token,
@@ -58,10 +58,18 @@ export async function sync(gitHubUser) {
   console.info("Starting GitHub sync...");
   syncInProgress = true;
   try {
-    const haveReviewRequests = await haveOpenReviewRequest(gitHubUser.id);
-    console.log(`User has reviews requested: ${haveReviewRequests}`);
+    const syncResult = await sync(gitHubUser.id);
+    console.log(`User PRs require attention: ${syncResult}`);
+    let iconName: string;
+    if (syncResult > 0) {
+      iconName = "red128.png";
+    } else if (syncResult == 0) {
+      iconName = "yellow128.png";
+    } else {
+      iconName = "green128.png";
+    }
     chrome.action.setIcon({
-      path: "icons/" + (haveReviewRequests ? "icon128.png" : "green128.png"),
+      path: "icons/" + iconName,
     });
     console.info("Sync finished.");
   } catch (e) {

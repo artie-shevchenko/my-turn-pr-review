@@ -9,33 +9,13 @@ import {
 
 const PULLS_PER_PAGE = 100;
 
-export async function listPullRequests(repo: Repo, pageNumber: number, retryNumber = 0) {
-  try {
-    return await octokit.pulls.list({
-      owner: repo.owner,
-      repo: repo.name,
-      state: 'open',
-      per_page: PULLS_PER_PAGE,
-      page: pageNumber,
-      headers: {
-        'X-GitHub-Api-Version': '2022-11-28',
-        // no caching:
-        'If-None-Match': '',
-      },
-    });
-  } catch (e) {
-    if (retryNumber > 2) {
-      console.error("The maximum number of retries reached");
-      throw e;
-    } else {
-      return await listPullRequests(repo, pageNumber, retryNumber + 1);
-    }
-  }
-}
-
-export async function haveOpenReviewRequest(gitHubUserId) {
+/**
+ * Returns negative if all good, 0 if attention may be needed or positive if attention is required
+ * for some PRs.
+ */
+export async function sync(gitHubUserId): Promise<number> {
   const reposByFullName = await getReposByFullName();
-  let detectedRequestedReviews = false;
+  let result = -1;
   // It's probably better to do these GitHub requests in a sequential manner so that GitHub is not
   // tempted to block them even if user monitors many repos:
   for (const [, repo] of reposByFullName) {
@@ -46,8 +26,7 @@ export async function haveOpenReviewRequest(gitHubUserId) {
     repo.lastSyncAttempted = true;
     // May be overridden later:
     repo.lastAttemptSuccess = true;
-    detectedRequestedReviews = detectedRequestedReviews //
-        || await updateRepoReviewRequests(repo, gitHubUserId);
+    result = Math.max(result, await syncRepo(repo, gitHubUserId));
   }
 
   // Maybe a list of repos was updated since the sync start:
@@ -66,30 +45,30 @@ export async function haveOpenReviewRequest(gitHubUserId) {
   // Update in background:
   storeRepos(reposFromStorage);
 
-  return detectedRequestedReviews;
+  return result;
 }
 
 /** Returns true if any reviews requested. */
-async function updateRepoReviewRequests(repo: any, gitHubUserId) {
-  let detectedRequestedReviews = false;
+async function syncRepo(repo: any, gitHubUserId): Promise<number> {
+  let result = -1;
   try {
-    let reviewRequestedPRs = [];
+    let prList = [];
     let pageNumber = 1;
     let pullsListBatch = await listPullRequests(repo, pageNumber);
     while (pullsListBatch.data.length >= PULLS_PER_PAGE) {
-      reviewRequestedPRs = reviewRequestedPRs.concat(pullsListBatch.data);
+      prList = prList.concat(pullsListBatch.data);
       pageNumber++;
       pullsListBatch = await listPullRequests(repo, pageNumber);
     }
-    reviewRequestedPRs = reviewRequestedPRs.concat(pullsListBatch.data);
+    prList = prList.concat(pullsListBatch.data);
 
-    console.log(`Total ${reviewRequestedPRs.length} PRs in: ${repo.fullName()}.`);
+    console.log(`Total ${prList.length} PRs in: ${repo.fullName()}.`);
 
     const newReviewsRequested = [] as ReviewRequested[];
-    reviewRequestedPRs.forEach((pr) => {
+    prList.forEach((pr) => {
       pr.requested_reviewers.forEach(reviewer => {
         if (reviewer.id === gitHubUserId) {
-          detectedRequestedReviews = true;
+          result = 1;
           const url = pr.html_url;
           const matchingReviewRequests = //
               repo.reviewsRequested.filter(existing => {
@@ -121,8 +100,32 @@ async function updateRepoReviewRequests(repo: any, gitHubUserId) {
     repo.lastSyncError = e + "";
     if (repo.reviewsRequested.length > 0) {
       // Using the last sync results:
-      return true;
+      return 1;
     }
   }
-  return detectedRequestedReviews;
+  return result;
+}
+
+export async function listPullRequests(repo: Repo, pageNumber: number, retryNumber = 0) {
+  try {
+    return await octokit.pulls.list({
+      owner: repo.owner,
+      repo: repo.name,
+      state: 'open',
+      per_page: PULLS_PER_PAGE,
+      page: pageNumber,
+      headers: {
+        'X-GitHub-Api-Version': '2022-11-28',
+        // no caching:
+        'If-None-Match': '',
+      },
+    });
+  } catch (e) {
+    if (retryNumber > 2) {
+      console.error("The maximum number of retries reached");
+      throw e;
+    } else {
+      return await listPullRequests(repo, pageNumber, retryNumber + 1);
+    }
+  }
 }
