@@ -1,7 +1,5 @@
-import { Octokit } from '@octokit/rest';
 import { octokit } from './serviceWorker';
 import {
-  getGitHubUser,
   getRepos,
   getReposByFullName,
   PR,
@@ -48,58 +46,8 @@ export async function haveOpenReviewRequest(gitHubUserId) {
     repo.lastSyncAttempted = true;
     // May be overridden later:
     repo.lastAttemptSuccess = true;
-    try {
-      let pullsList = [];
-      let pageNumber = 1;
-      let pullsListBatch = await listPullRequests(repo, pageNumber);
-      while (pullsListBatch.data.length >= PULLS_PER_PAGE) {
-        pullsList = pullsList.concat(pullsListBatch.data);
-        pageNumber++;
-        pullsListBatch = await listPullRequests(repo, pageNumber);
-      }
-      pullsList = pullsList.concat(pullsListBatch.data);
-
-      console.log(`Total ${pullsList.length} PRs in: ${repo.fullName()}.`);
-
-      const newReviewsRequested = [] as ReviewRequested[];
-      pullsList.forEach((pr) => {
-        pr.requested_reviewers.forEach(reviewer => {
-          if (reviewer.id === gitHubUserId) {
-            detectedRequestedReviews = true;
-            const url = pr.html_url;
-            const matchingReviewRequests = //
-                repo.reviewsRequested.filter(existing => {
-                  const existingUrl = existing.pr.url;
-                  return (existingUrl === url);
-                });
-            // To have an up-to-date title:
-            const pullRequest = new PR(url, pr.title);
-            if (matchingReviewRequests.length == 0) {
-              newReviewsRequested.push(new ReviewRequested(pullRequest, Date.now()));
-            } else {
-              const existingReviewRequest = matchingReviewRequests[0];
-              newReviewsRequested.push(
-                  new ReviewRequested(
-                      pullRequest,
-                      existingReviewRequest.firstTimeObservedUnixMillis,
-                  ));
-            }
-          }
-        });
-      });
-      // If review request was withdrawn and then re-requested again the first request will be
-      // (correctly) ignored:
-      repo.reviewsRequested = newReviewsRequested;
-    } catch (e) {
-      // Probably show a yellow icon? Or not.
-      console.warn(`Error listing pull requests from ${repo.fullName()}. Ignoring it.`, e);
-      repo.lastAttemptSuccess = false;
-      repo.lastSyncError = e + "";
-      if (repo.reviewsRequested.length > 0) {
-        // Using the last sync results:
-        detectedRequestedReviews = true;
-      }
-    }
+    detectedRequestedReviews = detectedRequestedReviews //
+        || await updateRepoReviewRequests(repo, gitHubUserId);
   }
 
   // Maybe a list of repos was updated since the sync start:
@@ -118,5 +66,63 @@ export async function haveOpenReviewRequest(gitHubUserId) {
   // Update in background:
   storeRepos(reposFromStorage);
 
+  return detectedRequestedReviews;
+}
+
+/** Returns true if any reviews requested. */
+async function updateRepoReviewRequests(repo: any, gitHubUserId) {
+  let detectedRequestedReviews = false;
+  try {
+    let reviewRequestedPRs = [];
+    let pageNumber = 1;
+    let pullsListBatch = await listPullRequests(repo, pageNumber);
+    while (pullsListBatch.data.length >= PULLS_PER_PAGE) {
+      reviewRequestedPRs = reviewRequestedPRs.concat(pullsListBatch.data);
+      pageNumber++;
+      pullsListBatch = await listPullRequests(repo, pageNumber);
+    }
+    reviewRequestedPRs = reviewRequestedPRs.concat(pullsListBatch.data);
+
+    console.log(`Total ${reviewRequestedPRs.length} PRs in: ${repo.fullName()}.`);
+
+    const newReviewsRequested = [] as ReviewRequested[];
+    reviewRequestedPRs.forEach((pr) => {
+      pr.requested_reviewers.forEach(reviewer => {
+        if (reviewer.id === gitHubUserId) {
+          detectedRequestedReviews = true;
+          const url = pr.html_url;
+          const matchingReviewRequests = //
+              repo.reviewsRequested.filter(existing => {
+                const existingUrl = existing.pr.url;
+                return (existingUrl === url);
+              });
+          // To have an up-to-date title:
+          const pullRequest = new PR(url, pr.title);
+          if (matchingReviewRequests.length == 0) {
+            newReviewsRequested.push(new ReviewRequested(pullRequest, Date.now()));
+          } else {
+            const existingReviewRequest = matchingReviewRequests[0];
+            newReviewsRequested.push(
+                new ReviewRequested(
+                    pullRequest,
+                    existingReviewRequest.firstTimeObservedUnixMillis,
+                ));
+          }
+        }
+      });
+    });
+    // If review request was withdrawn and then re-requested again the first request will be
+    // (correctly) ignored:
+    repo.reviewsRequested = newReviewsRequested;
+  } catch (e) {
+    // Probably show a yellow icon? Or not.
+    console.warn(`Error listing pull requests from ${repo.fullName()}. Ignoring it.`, e);
+    repo.lastAttemptSuccess = false;
+    repo.lastSyncError = e + "";
+    if (repo.reviewsRequested.length > 0) {
+      // Using the last sync results:
+      return true;
+    }
+  }
   return detectedRequestedReviews;
 }
