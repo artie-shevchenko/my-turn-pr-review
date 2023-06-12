@@ -27,6 +27,9 @@ document.getElementById('tokenForm').addEventListener('submit', (e) => {
   });
 });
 
+class NoGitHubToken extends Error {
+}
+
 // TODO: add instructions for fine-grained GitHub tokens.
 // TODO: show a warning if token has unnecessary permissions granted (is overly permissive).
 // UPDATE: there is no way to get a list of token scopes. We could try making many different
@@ -45,7 +48,7 @@ getGitHubUser().then(gitHubUser => {
       throw new Error("Could not get GitHub user. GitHub GET /user returned" + e);
     }
   } else {
-    throw new Error("No GitHub token found.");
+    throw new NoGitHubToken();
   }
 }).then(user => {
   if (user && user.data && user.data.id) {
@@ -60,10 +63,14 @@ getGitHubUser().then(gitHubUser => {
 
 function showError(e: Error) {
   document.getElementById('auth').style.display = 'block';
-  const errorDiv = document.getElementById('error');
-  errorDiv.style.display = 'block';
-  errorDiv.innerHTML = "Something went wrong. If the error persists likely the GitHub auth token needs to be updated.<br/><br/>"
-      + e;
+  if (e instanceof NoGitHubToken) {
+    // That's a part of the init flow, not an error.
+  } else {
+    const errorDiv = document.getElementById('error');
+    errorDiv.style.display = 'block';
+    errorDiv.innerHTML = "Something went wrong. If the error persists likely the GitHub auth token needs to be updated.<br/><br/>"
+        + e;
+  }
 }
 
 
@@ -78,7 +85,7 @@ async function populate() {
           let message = r.fullName() + " - " + r.lastSyncError;
           if (r.lastSyncError.endsWith("Not Found")) {
             // TODO: test token expiration. We shouldn't end up here I believe.
-            message += ' (likely problem is with token scopes or SSO configuration. Probably, go to the options page, delete token and start over again carefully following the instructions)'
+            message += ' (likely problem is with token scopes or SSO configuration. Probably, go to the options page, delete token and start over again carefully following the instructions)';
           }
           return message;
         }).join(",<br/>");

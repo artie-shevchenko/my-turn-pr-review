@@ -14,11 +14,11 @@
   <h2>Register your GitHub token</h2>
   <form id="tokenForm">
     <a href="https://github.com/settings/tokens">
-      1. Generate a GitHub token</a> with the following scopes: read:org, read:project, repo.<br/>
+      1. Generate a GitHub token</a> with the following scopes: repo, read:org, read:project.<br/>
       2. Copy the token string.<br/>
       3. Optionally, if there is a "Configure SSO" select box authorize access to all the necessary organizations.<br/>
       4. Paste in the token and click submit:
-    <input type="text" id="newToken" name=newToken">
+    <input type="text" id="newToken" name=newToken" autocomplete="off">
     <button type="submit">Submit</button>
   </form>
 </div>
