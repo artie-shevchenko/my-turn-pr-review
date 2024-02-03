@@ -5,14 +5,16 @@ import {
 } from './storage';
 import { Octokit } from "@octokit/rest";
 
-chrome.runtime.onInstalled.addListener(async () => {
-  await storeRepos([]);
+chrome.runtime.onInstalled.addListener(async (details) => {
+  if (details.reason == "install") {
+    await storeRepos([]);
 
-  chrome.action.setIcon({
-    path: "icons/yellow128.png",
-  });
+    chrome.action.setIcon({
+      path: "icons/yellow128.png",
+    });
 
-  console.log('Extension successfully installed!');
+    console.log('Extension successfully installed!');
+  }
 });
 
 export let octokit: Octokit;
