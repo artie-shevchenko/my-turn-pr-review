@@ -79,6 +79,7 @@ class RepoList {
 export class ReviewRequested {
   pr: PR;
   firstTimeObservedUnixMillis: number;
+  repo: string;
 
   constructor(
       pr: PR,

@@ -8,7 +8,7 @@ document.getElementById('go-to-options').addEventListener('click', () => {
 
 document.getElementById('tokenForm').addEventListener('submit', (e) => {
   e.preventDefault();
-  const newToken = document.getElementById('newToken').value.trim();
+  const newToken = (document.getElementById('newToken') as HTMLInputElement).value.trim();
   new Octokit({
     auth: newToken,
   }).request('GET /user', {
@@ -98,12 +98,12 @@ async function populate() {
 
   const reviewsRequested = repos.flatMap(repo => {
     return repo.reviewsRequested.map(v => {
-      v["repo"] = repo.owner + " / " + repo.name;
+      v.repo = repo.owner + " / " + repo.name;
       return v;
     });
   }).sort((a, b) => a.firstTimeObservedUnixMillis - b.firstTimeObservedUnixMillis);
 
-  const table = document.getElementById("prTable");
+  const table = document.getElementById("prTable") as HTMLTableElement;
 
   // Iterate over the pullRequests array and create rows for each entry
   for (let i = 0; i < reviewsRequested.length; i++) {
