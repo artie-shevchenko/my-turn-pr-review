@@ -49,7 +49,7 @@ function addRepoCheckbox(repoFullname: string, enabled: boolean) {
 
 form.addEventListener('submit', (e) => {
   e.preventDefault();
-  const newRepoFullName = document.getElementById('newRepo').value.trim();
+  const newRepoFullName = (document.getElementById('newRepo') as HTMLInputElement).value.trim();
 
   const re = new RegExp('/', 'g');
   if (newRepoFullName.match(re).length != 1) {
@@ -81,7 +81,7 @@ async function updateReposToWatchFromCheckboxes() {
   const reposByFullName = await getReposByFullName();
   const selectedCheckboxes = Array.from(
       document.querySelectorAll('input[name="reposCheckboxes"]'),
-  );
+  ).map((e) => e as HTMLInputElement);
 
   selectedCheckboxes.forEach(checkBox => {
     const repo = reposByFullName.get(checkBox.id);
