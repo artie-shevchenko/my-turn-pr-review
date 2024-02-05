@@ -30,7 +30,7 @@ document.getElementById('tokenForm').addEventListener('submit', (e) => {
 class NoGitHubToken extends Error {
 }
 
-// TODO: add instructions for fine-grained GitHub tokens.
+// TODO(6): add instructions for fine-grained GitHub tokens.
 getGitHubUser().then(gitHubUser => {
   if (gitHubUser && gitHubUser.token) {
     try {
