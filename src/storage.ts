@@ -7,8 +7,8 @@ export class Repo {
   monitoringEnabled: boolean;
   /* monitoringEnabled value during the last sync: */
   lastSyncAttempted: boolean;
-  // TODO: replace with a last successful sync timestamp? Then it would make sense to show a yellow icon
-  // if there was no successful sync in the last 10 minutes, for example.
+  // TODO(3): replace with a last successful sync timestamp? Then it would make sense to show a
+  // yellow icon if there was no successful sync in the last 5 minutes, for example.
   /* Whether the last attempt to sync (last time when monitoringEnabled was true) succeeded or not: */
   lastAttemptSuccess: boolean;
   /* The last sync attempt error regardless when it was and whether the last attempt was successful or not: */
