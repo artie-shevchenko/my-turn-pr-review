@@ -72,7 +72,7 @@ document.getElementById('deleteToken')
 let updatingRepos = false;
 
 async function updateReposToWatchFromCheckboxes() {
-  // TODO: change this to real mutex:
+  // #NOT_MATURE: change this to real mutex, use CAS or lock:
   while (updatingRepos) {
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
