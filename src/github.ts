@@ -30,7 +30,7 @@ export async function sync(gitHubUserId): Promise<number> {
   }
 
   // Maybe a list of repos was updated since the sync start:
-  // TODO: maybe split a user-configurable list of repos from the repo sync result in storage.
+  // TODO(5): split a user-configurable list of repos from the repo sync result in storage.
   const reposFromStorage = await getRepos();
   for (const repoFromStorage of reposFromStorage) {
     const syncedRepo = reposByFullName.get(repoFromStorage.fullName());
