@@ -31,9 +31,6 @@ class NoGitHubToken extends Error {
 }
 
 // TODO: add instructions for fine-grained GitHub tokens.
-// TODO: show a warning if token has unnecessary permissions granted (is overly permissive).
-// UPDATE: there is no way to get a list of token scopes. We could try making many different
-// requests though...
 getGitHubUser().then(gitHubUser => {
   if (gitHubUser && gitHubUser.token) {
     try {
