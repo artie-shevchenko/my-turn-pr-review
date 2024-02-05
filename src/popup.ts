@@ -81,7 +81,7 @@ async function populate() {
         reposWithProblems.map(r => {
           let message = r.fullName() + " - " + r.lastSyncError;
           if (r.lastSyncError.endsWith("Not Found")) {
-            // TODO: test token expiration. We shouldn't end up here I believe.
+            // TODO(8): test token expiration. We shouldn't end up here I believe.
             message += ' (likely problem is with token scopes or SSO configuration. Probably, go to the options page, delete token and start over again carefully following the instructions)';
           }
           return message;
