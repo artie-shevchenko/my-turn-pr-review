@@ -14,7 +14,7 @@ export class Repo {
   /* The last sync attempt error regardless when it was and whether the last attempt was successful or not: */
   lastSyncError: string;
   reviewsRequested: ReviewRequested[];
-  // TODO: maybe add support for when somebody submits you a new review, mention, etc.?
+  // TODO(4): add support for when somebody submits you a new review, mention, etc.?
 
   constructor(
       owner: string,
