@@ -120,6 +120,6 @@ async function populate() {
     hoursCell.innerHTML = Math.floor((Date.now() - reviewsRequested[i].firstTimeObservedUnixMillis)
         / (1000 * 60 * 60)) + "h";
 
-    // TODO: add silence review request button.
+    // TODO(9): add silence review request button.
   }
 }
