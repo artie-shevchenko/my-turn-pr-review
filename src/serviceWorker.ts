@@ -14,6 +14,11 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   }
 });
 
+// Subscribe to an event so that Chrome runs our service worker on startup
+chrome.runtime.onStartup.addListener(() => {
+  console.log(`Service worker started`);
+});
+
 export let octokit: Octokit;
 
 setInterval(function () {
