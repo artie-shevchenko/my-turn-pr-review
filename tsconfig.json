@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "outDir": "./dist/",
-    "noImplicitAny": false, // TODO: enable this and fix errors after MVP is ready
+    "noImplicitAny": true,
     "module": "es6",
     "target": "es6",
     "moduleResolution": "node"

@@ -6,7 +6,8 @@
     "start": "webpack --watch --config webpack.dev.js",
     "build": "webpack --config webpack.prod.js",
     "lint": "eslint --ext .ts,.js --max-warnings=0 .",
-    "prettier": "prettier --write"
+    "prettier": "prettier --write",
+    "prepare": "husky install"
   },
   "license": "MIT",
   "devDependencies": {
@@ -14,6 +15,8 @@
     "@babel/plugin-transform-runtime": "^7.18.6",
     "@babel/preset-env": "^7.18.6",
     "@babel/preset-typescript": "^7.18.6",
+    "@octokit/openapi-types": "^19.1.0",
+    "@octokit/types": "^12.4.0",
     "@types/chrome": "^0.0.193",
     "@typescript-eslint/eslint-plugin": "^5.30.5",
     "@typescript-eslint/parser": "^5.30.5",
@@ -24,7 +27,7 @@
     "eslint": "^8.19.0",
     "eslint-config-prettier": "^8.5.0",
     "eslint-webpack-plugin": "^3.2.0",
-    "husky": "^8.0.1",
+    "husky": "^8.0.0",
     "lint-staged": "^13.0.3",
     "mini-css-extract-plugin": "^2.6.1",
     "prettier": "^2.7.1",
@@ -37,9 +40,9 @@
   },
   "dependencies": {
     "@babel/runtime": "^7.18.6",
-    "normalize.css": "^8.0.1",
     "@extend-chrome/storage": "^1.5.0",
-    "@octokit/rest": "^19.0.8"
+    "@octokit/rest": "^19.0.8",
+    "normalize.css": "^8.0.1"
   },
   "browserslist": "> 0.25%, not dead",
   "husky": {
