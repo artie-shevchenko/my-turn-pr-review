@@ -1,11 +1,9 @@
 import { sync } from "./github";
-import { getGitHubUser, GitHubUser, storeRepos } from "./storage";
+import { getGitHubUser, GitHubUser} from "./storage";
 import { Octokit } from "@octokit/rest";
 
 chrome.runtime.onInstalled.addListener(async (details) => {
   if (details.reason == "install") {
-    await storeRepos([]);
-
     chrome.action.setIcon({
       path: "icons/yellow128.png",
     });
@@ -32,18 +30,6 @@ setInterval(function () {
       console.error("Sync failed", e);
     });
 }, 10000);
-
-// Watch for changes to the user's options & apply them
-chrome.storage.onChanged.addListener(() => {
-  console.log("Triggering sync as repo set may be changed.");
-  getGitHubUser()
-    .then((gitHubUser) => {
-      syncWithGitHub(gitHubUser);
-    })
-    .catch((e) => {
-      console.error("Sync failed", e);
-    });
-});
 
 let syncInProgress = false;
 

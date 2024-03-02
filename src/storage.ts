@@ -1,51 +1,34 @@
 import { getBucket } from "@extend-chrome/storage";
 
+const REPO_STORE_KEY = "reposStore";
+const REPO_STATE_LIST_STORE_KEY = "repoStateListStore";
+
 export class Repo {
   readonly owner: string;
   readonly name: string;
   /* User setting from the Options page: */
   monitoringEnabled: boolean;
-  /* monitoringEnabled value during the last sync: */
-  lastSyncAttempted: boolean;
-  // TODO(3): replace with a last successful sync timestamp? Then it would make sense to show a
-  // yellow icon if there was no successful sync in the last 5 minutes, for example.
-  /* Whether the last attempt to sync (last time when monitoringEnabled was true) succeeded or not: */
-  lastAttemptSuccess: boolean;
-  /* The last sync attempt error regardless when it was and whether the last attempt was successful or not: */
-  lastSyncError: string;
-  reviewsRequested: ReviewRequested[];
 
   // TODO(4): add support for when somebody submits you a new review, mention, etc.?
 
   constructor(
-    owner: string,
-    name: string,
-    monitoringEnabled = true,
-    lastSyncAttempted: boolean = undefined,
-    lastAttemptSuccess: boolean = undefined,
-    lastSyncError: string = undefined,
-    reviewsRequested: ReviewRequested[] = [],
+      owner: string,
+      name: string,
+      monitoringEnabled = true,
   ) {
     this.owner = owner;
     this.name = name;
     this.monitoringEnabled = monitoringEnabled;
-    this.lastSyncAttempted = lastSyncAttempted;
-    this.lastAttemptSuccess = lastAttemptSuccess;
-    this.lastSyncError = lastSyncError;
-    this.reviewsRequested = reviewsRequested;
   }
 
   // TODO This should be replaces with dto interface
-  // NOTE: https://stackoverflow.com/questions/34031448/typescript-typeerror-myclass-myfunction-is-not-a-function
+  // NOTE:
+  // https://stackoverflow.com/questions/34031448/typescript-typeerror-myclass-myfunction-is-not-a-function
   static of(repo: Repo): Repo {
     return new Repo(
-      repo.owner,
-      repo.name,
-      repo.monitoringEnabled,
-      repo.lastSyncAttempted,
-      repo.lastAttemptSuccess,
-      repo.lastSyncError,
-      repo.reviewsRequested,
+        repo.owner,
+        repo.name,
+        repo.monitoringEnabled,
     );
   }
 
@@ -57,9 +40,9 @@ export class Repo {
     }
 
     return new Repo(
-      fullName.substring(0, p),
-      fullName.substring(p + 1),
-      monitoringEnabled,
+        fullName.substring(0, p),
+        fullName.substring(p + 1),
+        monitoringEnabled,
     );
   }
 
@@ -76,10 +59,90 @@ class RepoList {
   }
 }
 
-export class ReviewRequested {
+class RepoStateList {
+  repoStateList: RepoState[];
+
+  constructor(repos: RepoState[]) {
+    this.repoStateList = repos;
+  }
+}
+
+
+export class RepoState {
+  readonly fullName: string;
+  lastSyncResult: RepoSyncResult;
+  // Undefined if there were no successful syncs.
+  lastSuccessfulSyncResult: RepoSyncResult;
+
+  constructor(
+      repoFullName: string = undefined,
+      lastSyncResult: RepoSyncResult = undefined,
+      lastSuccessfulSyncResult: RepoSyncResult = undefined,
+  ) {
+    this.fullName = repoFullName;
+    this.lastSyncResult = lastSyncResult;
+    this.lastSuccessfulSyncResult = lastSuccessfulSyncResult;
+  }
+
+  // Probably better replaced with a dto interface. See
+  // https://stackoverflow.com/questions/34031448/typescript-typeerror-myclass-myfunction-is-not-a-function
+  static of(repoState: RepoState): RepoState {
+    return new RepoState(
+        repoState.fullName,
+        RepoSyncResult.of(repoState.lastSyncResult),
+        repoState.lastSuccessfulSyncResult
+            ? RepoSyncResult.of(repoState.lastSuccessfulSyncResult)
+            : undefined,
+    );
+  }
+}
+
+/** A successful or failed sync. */
+export class RepoSyncResult {
+  /* Undefined for a failed sync. */
+  reviewRequestList: ReviewRequest[];
+
+  syncStartUnixMillis: number;
+
+  /* Undefined for a successful sync. */
+  errorMsg: string;
+
+  constructor(
+      reviewRequestList: ReviewRequest[] = undefined,
+      syncStartUnixMillis: number = undefined,
+      errorMsg: string = undefined,
+  ) {
+    this.reviewRequestList = reviewRequestList;
+    this.syncStartUnixMillis = syncStartUnixMillis;
+    this.errorMsg = errorMsg;
+  }
+
+  /** Whether we treat is as still reliable data in absence of a more recent successful sync. */
+  isRecent(): boolean {
+    return this.syncStartUnixMillis >= Date.now() - 1000 * 60 * 5;
+  }
+
+  // Probably better replaced with a dto interface. See
+  // https://stackoverflow.com/questions/34031448/typescript-typeerror-myclass-myfunction-is-not-a-function
+  static of(repoSyncResult: RepoSyncResult): RepoSyncResult {
+    const reviewRequestList = repoSyncResult.reviewRequestList
+        ? repoSyncResult.reviewRequestList.map((v) => {
+          return new ReviewRequest(v.pr, v.firstTimeObservedUnixMillis);
+        })
+        : undefined;
+    return new RepoSyncResult(
+        reviewRequestList,
+        repoSyncResult.syncStartUnixMillis,
+        repoSyncResult.errorMsg,
+    );
+  }
+}
+
+export class ReviewRequest {
   pr: PR;
   firstTimeObservedUnixMillis: number;
-  repo: string;
+  // #NOT_MATURE: lazily populated in popup.ts:
+  repoFullName: string;
 
   constructor(pr: PR, firstTimeObservedUnixMillis: number) {
     this.pr = pr;
@@ -107,38 +170,62 @@ export class GitHubUser {
   }
 }
 
-export async function storeReposMap(reposByFullName: Map<string, Repo>) {
-  const reposStore = getBucket<RepoList>("reposStore", "sync");
+// Repo storage:
+
+export async function storeReposMap(reposByFullName: Map<string, Repo>): Promise<RepoList> {
+  console.log("Storing repos");
   const repos = [] as Repo[];
   reposByFullName.forEach((repo: Repo) => {
     repos.push(repo);
   });
-  return reposStore.set(new RepoList(repos));
-}
-
-export async function storeRepos(repos: Repo[]) {
-  const reposStore = getBucket<RepoList>("reposStore", "sync");
-  return reposStore.set(new RepoList(repos));
-}
-
-export async function getReposByFullName(): Promise<Map<string, Repo>> {
-  return getRepos().then((repos) => {
-    const result = new Map<string, Repo>();
-    repos.forEach((repo) => result.set(repo.fullName(), repo));
-    return result;
-  });
+  return getBucket<RepoList>(REPO_STORE_KEY, "sync").set(new RepoList(repos));
 }
 
 export async function getRepos(): Promise<Repo[]> {
   return (
-    getBucket<RepoList>("reposStore", "sync")
-      .get()
-      // storage returns an Object, not a Repo...
-      .then((l) => l.repos.map((v) => Repo.of(v)))
+      getBucket<RepoList>(REPO_STORE_KEY, "sync")
+          .get()
+          // storage returns an Object, not a Repo...
+          .then((l) => (l && l.repos) ? l.repos.map((v) => Repo.of(v)) : [])
   );
 }
 
+// RepoState storage:
+
+export async function storeRepoStateMap(repoStateByFullName: Map<string, RepoState>): Promise<RepoStateList> {
+  console.log("Storing repos state");
+  const repoStateList = [] as RepoState[];
+  repoStateByFullName.forEach((repoState: RepoState) => {
+    repoStateList.push(repoState);
+  });
+  return getBucket<RepoStateList>(REPO_STATE_LIST_STORE_KEY, "sync")
+      .set(new RepoStateList(repoStateList));
+}
+
+export async function getRepoStateByFullName(): Promise<Map<string, RepoState>> {
+  return getRepoStateList().then((repoStateList) => {
+    const result = new Map<string, RepoState>();
+    repoStateList.forEach((repoState) => result.set(repoState.fullName, repoState));
+    return result;
+  });
+}
+
+async function getRepoStateList(): Promise<RepoState[]> {
+  return (
+      getBucket<RepoStateList>(REPO_STATE_LIST_STORE_KEY, "sync")
+          .get()
+          // storage returns an Object, not a Repo...
+          .then((l) => {
+            return (l && l.repoStateList) ?
+                l.repoStateList.map((v) => RepoState.of(v)) : [];
+          })
+  );
+}
+
+// GitHubUser storage:
+
 export async function storeGitHubUser(user: GitHubUser) {
+  console.log("Storing GitHub user");
   const store = getBucket<GitHubUser>("gitHubUser", "sync");
   if (!user) {
     return store.clear();
