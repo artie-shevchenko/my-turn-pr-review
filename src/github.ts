@@ -1,11 +1,13 @@
 import { octokit } from "./serviceWorker";
 import {
   getRepos,
-  getReposByFullName,
+  getRepoStateByFullName,
   PR,
   Repo,
-  ReviewRequested,
-  storeRepos,
+  RepoState,
+  RepoSyncResult,
+  ReviewRequest,
+  storeRepoStateMap,
 } from "./storage";
 import {
   GetResponseDataTypeFromEndpointMethod,
@@ -23,46 +25,49 @@ type PullsListResponseDataType = GetResponseDataTypeFromEndpointMethod<
 
 /**
  * Returns negative if all good, 0 if attention may be needed or positive if attention is required
- * for some PRs.
+ * for some PRs. TODO: return enum instead.
  */
 export async function sync(gitHubUserId: number): Promise<number> {
-  const reposByFullName = await getReposByFullName();
+  const reposByFullName = await getRepos();
+  const repoStateByFullName = await getRepoStateByFullName();
+  const newRepoStateByFullName = new Map<string, RepoState>();
   let result = -1;
   // It's probably better to do these GitHub requests in a sequential manner so that GitHub is not
   // tempted to block them even if user monitors many repos:
-  for (const [, repo] of reposByFullName) {
+  for (const repo of reposByFullName) {
+    let repoState = repoStateByFullName.get(repo.fullName());
     if (!repo.monitoringEnabled) {
-      repo.lastSyncAttempted = false;
+      if (repoState) {
+        // Preserve the state just in case it gets enabled later (given the hacky way of computing
+        // review request staleness):
+        newRepoStateByFullName.set(repo.fullName(), repoState);
+      }
       continue;
     }
-    repo.lastSyncAttempted = true;
-    // May be overridden later:
-    repo.lastAttemptSuccess = true;
-    result = Math.max(result, await syncRepo(repo, gitHubUserId));
-  }
-
-  // Maybe a list of repos was updated since the sync start:
-  // TODO(5): split a user-configurable list of repos from the repo sync result in storage.
-  const reposFromStorage = await getRepos();
-  for (const repoFromStorage of reposFromStorage) {
-    const syncedRepo = reposByFullName.get(repoFromStorage.fullName());
-    if (syncedRepo) {
-      repoFromStorage.lastSyncAttempted = syncedRepo.lastSyncAttempted;
-      repoFromStorage.lastAttemptSuccess = syncedRepo.lastAttemptSuccess;
-      repoFromStorage.lastSyncError = syncedRepo.lastSyncError;
-      repoFromStorage.reviewsRequested = syncedRepo.reviewsRequested;
+    if (!repoState) {
+      repoState = new RepoState(repo.fullName());
     }
+    newRepoStateByFullName.set(repo.fullName(), repoState);
+    result = Math.max(result, await syncRepo(repoState, gitHubUserId));
   }
 
   // Update in background:
-  storeRepos(reposFromStorage);
+  storeRepoStateMap(newRepoStateByFullName);
 
   return result;
 }
 
-/** Returns true if any reviews requested. */
-async function syncRepo(repo: Repo, gitHubUserId: number): Promise<number> {
-  let result = -1;
+/**
+ * Returns true if any reviews requested.
+ *
+ * @param repo The repo state will be updated as a result of the call.
+ */
+async function syncRepo(
+  repo: RepoState,
+  gitHubUserId: number,
+): Promise<number> {
+  const repoSyncResult = new RepoSyncResult();
+  repoSyncResult.syncStartUnixMillis = Date.now();
   try {
     let prList: PullsListResponseDataType = [];
     let pageNumber = 1;
@@ -74,29 +79,32 @@ async function syncRepo(repo: Repo, gitHubUserId: number): Promise<number> {
     }
     prList = prList.concat(pullsListBatch.data);
 
-    console.log(`Total ${prList.length} PRs in: ${repo.fullName()}.`);
-
-    const newReviewsRequested = [] as ReviewRequested[];
+    console.log(`Total ${prList.length} PRs in: ${repo.fullName}.`);
+    const newReviewsRequested = [] as ReviewRequest[];
     prList.forEach((pr) => {
       pr.requested_reviewers.forEach((reviewer) => {
         if (reviewer.id === gitHubUserId) {
-          result = 1;
           const url = pr.html_url;
-          const matchingReviewRequests = //
-            repo.reviewsRequested.filter((existing) => {
-              const existingUrl = existing.pr.url;
-              return existingUrl === url;
-            });
+          let matchingReviewRequests = [] as ReviewRequest[];
+          if (repo.lastSuccessfulSyncResult) {
+            matchingReviewRequests =
+              repo.lastSuccessfulSyncResult.reviewRequestList.filter(
+                (existing) => {
+                  const existingUrl = existing.pr.url;
+                  return existingUrl === url;
+                },
+              );
+          }
           // To have an up-to-date title:
           const pullRequest = new PR(url, pr.title);
           if (matchingReviewRequests.length == 0) {
             newReviewsRequested.push(
-              new ReviewRequested(pullRequest, Date.now()),
+              new ReviewRequest(pullRequest, Date.now()),
             );
           } else {
             const existingReviewRequest = matchingReviewRequests[0];
             newReviewsRequested.push(
-              new ReviewRequested(
+              new ReviewRequest(
                 pullRequest,
                 existingReviewRequest.firstTimeObservedUnixMillis,
               ),
@@ -107,32 +115,50 @@ async function syncRepo(repo: Repo, gitHubUserId: number): Promise<number> {
     });
     // If review request was withdrawn and then re-requested again the first request will be
     // (correctly) ignored:
-    repo.reviewsRequested = newReviewsRequested;
+    repoSyncResult.reviewRequestList = newReviewsRequested;
+    repo.lastSuccessfulSyncResult = repoSyncResult;
+    repo.lastSyncResult = repoSyncResult;
+    return repoSyncResult.reviewRequestList.length > 0 ? 1 : -1;
   } catch (e) {
-    // Probably show a yellow icon? Or not.
     console.warn(
-      `Error listing pull requests from ${repo.fullName()}. Ignoring it.`,
+      `Error listing pull requests from ${repo.fullName}. Ignoring it.`,
       e,
     );
-    repo.lastAttemptSuccess = false;
-    repo.lastSyncError = e + "";
-    if (repo.reviewsRequested.length > 0) {
-      // Using the last sync results:
-      return 1;
+    repoSyncResult.errorMsg = e + "";
+    repo.lastSyncResult = repoSyncResult;
+
+    // Same as in populate from popup.ts:
+    // After 5 minutes of unsuccessful syncs, don't visualize the reviews requested:
+    if (
+      repo.lastSuccessfulSyncResult &&
+      repo.lastSuccessfulSyncResult.isRecent()
+    ) {
+      // Use the last successful sync results:
+      return repo.lastSuccessfulSyncResult.reviewRequestList.length > 0
+        ? 1
+        : -1;
+    } else {
+      // Show a yellow icon:
+      return 0;
     }
   }
-  return result;
 }
 
 export async function listPullRequests(
-  repo: Repo,
+  repo: RepoState,
   pageNumber: number,
   retryNumber = 0,
 ): Promise<PullsListResponseType> {
   try {
+    // A little hack just to get repo owner and name:
+    const r = Repo.fromFullName(repo.fullName);
+    if (retryNumber > 0) {
+      // exponential backoff:
+      await delay(1000 * Math.pow(2, retryNumber - 1));
+    }
     return await octokit.pulls.list({
-      owner: repo.owner,
-      repo: repo.name,
+      owner: r.owner,
+      repo: r.name,
       state: "open",
       per_page: PULLS_PER_PAGE,
       page: pageNumber,
@@ -143,11 +169,17 @@ export async function listPullRequests(
       },
     });
   } catch (e) {
-    if (retryNumber > 2) {
+    if (retryNumber > 3) {
       console.error("The maximum number of retries reached");
       throw e;
     } else {
       return await listPullRequests(repo, pageNumber, retryNumber + 1);
     }
   }
+}
+
+function delay(milliseconds: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, milliseconds);
+  });
 }

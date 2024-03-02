@@ -1,7 +1,8 @@
 import "../styles/options.scss";
+import { syncWithGitHub } from "./serviceWorker";
 import {
+  getGitHubUser,
   getRepos,
-  getReposByFullName,
   Repo,
   storeGitHubUser,
   storeReposMap,
@@ -88,21 +89,28 @@ async function updateReposToWatchFromCheckboxes() {
   }
   updatingRepos = true;
 
-  const reposByFullName = await getReposByFullName();
-  const selectedCheckboxes = Array.from(
+  const checkBoxes = Array.from(
     document.querySelectorAll('input[name="reposCheckboxes"]'),
   ).map((e) => e as HTMLInputElement);
 
-  selectedCheckboxes.forEach((checkBox) => {
-    const repo = reposByFullName.get(checkBox.id);
-    if (repo) {
-      repo.monitoringEnabled = checkBox.checked;
-    } else {
-      reposByFullName.set(checkBox.id, Repo.fromFullName(checkBox.id));
-    }
+  const reposByFullName = new Map<string, Repo>();
+  checkBoxes.forEach((checkBox) => {
+    reposByFullName.set(
+      checkBox.id,
+      Repo.fromFullName(checkBox.id, checkBox.checked),
+    );
   });
   storeReposMap(reposByFullName).then(() => {
-    console.log("Updated repos to watch:", selectedCheckboxes);
+    console.log("Updated repos to watch:", checkBoxes);
     updatingRepos = false;
+
+    console.log("Triggering sync as repo set may have changed.");
+    getGitHubUser()
+      .then((gitHubUser) => {
+        syncWithGitHub(gitHubUser);
+      })
+      .catch((e) => {
+        console.error("Sync failed", e);
+      });
   });
 }

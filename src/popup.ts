@@ -2,8 +2,10 @@ import "../styles/popup.scss";
 import {
   getGitHubUser,
   getRepos,
+  getRepoStateByFullName,
   GitHubUser,
   Repo,
+  ReviewRequest,
   storeGitHubUser,
 } from "./storage";
 import { Octokit } from "@octokit/rest";
@@ -90,17 +92,32 @@ function showError(e: Error) {
 }
 
 async function populate() {
-  const repos: Repo[] = (await getRepos()).filter((r) => r.lastSyncAttempted);
+  const repoStateByFullName = await getRepoStateByFullName();
+  const repos: Repo[] = (await getRepos()).filter(
+    (r) =>
+      r.monitoringEnabled &&
+      // ignore repos which are not synced yet (sync is definitely in progress):
+      repoStateByFullName.get(r.fullName()),
+  );
 
-  const reposWithProblems = repos.filter((r) => r.lastAttemptSuccess === false);
-  const repoWarn = document.getElementById("repoWarn");
+  const reposWithProblems = repos.filter((r) => {
+    const repoState = repoStateByFullName.get(r.fullName());
+    console.assert(
+      repoState.lastSyncResult,
+      "No last sync? " + repoState.lastSyncResult,
+    );
+    return repoState.lastSyncResult.errorMsg;
+  });
+  const repoWarnSection = document.getElementById("repoWarn");
   if (reposWithProblems.length > 0) {
-    repoWarn.innerHTML =
+    repoWarnSection.innerHTML =
       "Attention! Couldn't sync with the following GitHub repos:<br/>" +
       reposWithProblems
         .map((r) => {
-          let message = r.fullName() + " - " + r.lastSyncError;
-          if (r.lastSyncError.endsWith("Not Found")) {
+          const repoState = repoStateByFullName.get(r.fullName());
+          const lastSyncErrorMsg = repoState.lastSyncResult.errorMsg;
+          let message = r.fullName() + " - " + lastSyncErrorMsg;
+          if (lastSyncErrorMsg.endsWith("Not Found")) {
             // TODO(8): test token expiration. We shouldn't end up here I believe.
             message +=
               " (likely problem is with token scopes or SSO configuration. Probably, go to the options page, delete token and start over again carefully following the instructions)";
@@ -109,20 +126,36 @@ async function populate() {
         })
         .join(",<br/>");
   } else {
-    repoWarn.innerHTML = "";
+    repoWarnSection.innerHTML = "";
   }
-  const repoList = document.getElementById("repoList");
-  repoList.innerHTML =
+  const repoListSection = document.getElementById("repoList");
+  repoListSection.innerHTML =
     "Repos monitored: " +
     repos
-      .filter((r) => r.lastAttemptSuccess)
+      // All the repos monitored should be mentioned either in repoListSection or
+      // repoWarnSection:
+      .filter(
+        (r) => !repoStateByFullName.get(r.fullName()).lastSyncResult.errorMsg,
+      )
       .map((r) => r.fullName())
       .join(", ");
 
   const reviewsRequested = repos
     .flatMap((repo) => {
-      return repo.reviewsRequested.map((v) => {
-        v.repo = repo.owner + " / " + repo.name;
+      const repoState = repoStateByFullName.get(repo.fullName());
+      if (!repoState) {
+        return [] as ReviewRequest[];
+      }
+      if (
+        !repoState.lastSuccessfulSyncResult ||
+        !repoState.lastSuccessfulSyncResult.isRecent()
+      ) {
+        // After 5 minutes of unsuccessful syncs, don't visualize the reviews requested:
+        return [] as ReviewRequest[];
+      }
+
+      return repoState.lastSuccessfulSyncResult.reviewRequestList.map((v) => {
+        v.repoFullName = repo.owner + " / " + repo.name;
         return v;
       });
     })
@@ -137,7 +170,7 @@ async function populate() {
     const row = table.insertRow(i + 1); // Insert rows starting from index 1
 
     const repoCell = row.insertCell(0);
-    repoCell.innerHTML = reviewsRequested[i].repo;
+    repoCell.innerHTML = reviewsRequested[i].repoFullName;
 
     const prCell = row.insertCell(1);
     prCell.innerHTML =
