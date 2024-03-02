@@ -1,5 +1,5 @@
 import "../styles/options.scss";
-import { syncWithGitHub } from './serviceWorker';
+import { syncWithGitHub } from "./serviceWorker";
 import {
   getGitHubUser,
   getRepos,
@@ -15,23 +15,23 @@ showCurrentRepos();
 
 async function showCurrentRepos() {
   getRepos()
-      .then((repos) => {
-        const sortedRepos = repos.sort(function(a, b) {
-          if (a.fullName() < b.fullName()) {
-            return -1;
-          }
-          if (a.fullName() > b.fullName()) {
-            return 1;
-          }
-          return 0;
-        });
-        for (const repo of sortedRepos) {
-          addRepoCheckbox(repo.fullName(), repo.monitoringEnabled);
+    .then((repos) => {
+      const sortedRepos = repos.sort(function (a, b) {
+        if (a.fullName() < b.fullName()) {
+          return -1;
         }
-      })
-      .catch((e) => {
-        console.error("Error fetching repositories from storage.", e);
+        if (a.fullName() > b.fullName()) {
+          return 1;
+        }
+        return 0;
       });
+      for (const repo of sortedRepos) {
+        addRepoCheckbox(repo.fullName(), repo.monitoringEnabled);
+      }
+    })
+    .catch((e) => {
+      console.error("Error fetching repositories from storage.", e);
+    });
 }
 
 function addRepoCheckbox(repoFullname: string, enabled: boolean) {
@@ -57,7 +57,7 @@ function addRepoCheckbox(repoFullname: string, enabled: boolean) {
 form.addEventListener("submit", (e) => {
   e.preventDefault();
   const newRepoFullName = (
-      document.getElementById("newRepo") as HTMLInputElement
+    document.getElementById("newRepo") as HTMLInputElement
   ).value.trim();
 
   const re = new RegExp("/", "g");
@@ -72,11 +72,11 @@ form.addEventListener("submit", (e) => {
   }
 });
 
-document.getElementById("deleteToken").addEventListener("click", function() {
+document.getElementById("deleteToken").addEventListener("click", function () {
   storeGitHubUser(null).then(
-      () =>
-          (document.getElementById("main").innerHTML =
-              "<h1>Click on the extension icon in the toolbar to enter a new token.</h1>"),
+    () =>
+      (document.getElementById("main").innerHTML =
+        "<h1>Click on the extension icon in the toolbar to enter a new token.</h1>"),
   );
 });
 
@@ -90,12 +90,15 @@ async function updateReposToWatchFromCheckboxes() {
   updatingRepos = true;
 
   const checkBoxes = Array.from(
-      document.querySelectorAll('input[name="reposCheckboxes"]'),
+    document.querySelectorAll('input[name="reposCheckboxes"]'),
   ).map((e) => e as HTMLInputElement);
 
   const reposByFullName = new Map<string, Repo>();
   checkBoxes.forEach((checkBox) => {
-    reposByFullName.set(checkBox.id, Repo.fromFullName(checkBox.id, checkBox.checked));
+    reposByFullName.set(
+      checkBox.id,
+      Repo.fromFullName(checkBox.id, checkBox.checked),
+    );
   });
   storeReposMap(reposByFullName).then(() => {
     console.log("Updated repos to watch:", checkBoxes);
@@ -103,11 +106,11 @@ async function updateReposToWatchFromCheckboxes() {
 
     console.log("Triggering sync as repo set may have changed.");
     getGitHubUser()
-        .then((gitHubUser) => {
-          syncWithGitHub(gitHubUser);
-        })
-        .catch((e) => {
-          console.error("Sync failed", e);
-        });
+      .then((gitHubUser) => {
+        syncWithGitHub(gitHubUser);
+      })
+      .catch((e) => {
+        console.error("Sync failed", e);
+      });
   });
 }

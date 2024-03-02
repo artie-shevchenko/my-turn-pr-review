@@ -16,8 +16,12 @@ import {
 
 const PULLS_PER_PAGE = 100;
 
-type PullsListResponseType = GetResponseTypeFromEndpointMethod<typeof octokit.pulls.list>;
-type PullsListResponseDataType = GetResponseDataTypeFromEndpointMethod<typeof octokit.pulls.list>;
+type PullsListResponseType = GetResponseTypeFromEndpointMethod<
+  typeof octokit.pulls.list
+>;
+type PullsListResponseDataType = GetResponseDataTypeFromEndpointMethod<
+  typeof octokit.pulls.list
+>;
 
 /**
  * Returns negative if all good, 0 if attention may be needed or positive if attention is required
@@ -58,7 +62,10 @@ export async function sync(gitHubUserId: number): Promise<number> {
  *
  * @param repo The repo state will be updated as a result of the call.
  */
-async function syncRepo(repo: RepoState, gitHubUserId: number): Promise<number> {
+async function syncRepo(
+  repo: RepoState,
+  gitHubUserId: number,
+): Promise<number> {
   const repoSyncResult = new RepoSyncResult();
   repoSyncResult.syncStartUnixMillis = Date.now();
   try {
@@ -80,24 +87,27 @@ async function syncRepo(repo: RepoState, gitHubUserId: number): Promise<number> 
           const url = pr.html_url;
           let matchingReviewRequests = [] as ReviewRequest[];
           if (repo.lastSuccessfulSyncResult) {
-            matchingReviewRequests = repo.lastSuccessfulSyncResult.reviewRequestList.filter((existing) => {
-                const existingUrl = existing.pr.url;
-                return existingUrl === url;
-              });
+            matchingReviewRequests =
+              repo.lastSuccessfulSyncResult.reviewRequestList.filter(
+                (existing) => {
+                  const existingUrl = existing.pr.url;
+                  return existingUrl === url;
+                },
+              );
           }
           // To have an up-to-date title:
           const pullRequest = new PR(url, pr.title);
           if (matchingReviewRequests.length == 0) {
             newReviewsRequested.push(
-                new ReviewRequest(pullRequest, Date.now()),
+              new ReviewRequest(pullRequest, Date.now()),
             );
           } else {
             const existingReviewRequest = matchingReviewRequests[0];
             newReviewsRequested.push(
-                new ReviewRequest(
-                    pullRequest,
-                    existingReviewRequest.firstTimeObservedUnixMillis,
-                ),
+              new ReviewRequest(
+                pullRequest,
+                existingReviewRequest.firstTimeObservedUnixMillis,
+              ),
             );
           }
         }
@@ -111,17 +121,22 @@ async function syncRepo(repo: RepoState, gitHubUserId: number): Promise<number> 
     return repoSyncResult.reviewRequestList.length > 0 ? 1 : -1;
   } catch (e) {
     console.warn(
-        `Error listing pull requests from ${repo.fullName}. Ignoring it.`,
-        e,
+      `Error listing pull requests from ${repo.fullName}. Ignoring it.`,
+      e,
     );
     repoSyncResult.errorMsg = e + "";
     repo.lastSyncResult = repoSyncResult;
 
     // Same as in populate from popup.ts:
     // After 5 minutes of unsuccessful syncs, don't visualize the reviews requested:
-    if (repo.lastSuccessfulSyncResult && repo.lastSuccessfulSyncResult.isRecent()) {
+    if (
+      repo.lastSuccessfulSyncResult &&
+      repo.lastSuccessfulSyncResult.isRecent()
+    ) {
       // Use the last successful sync results:
-      return repo.lastSuccessfulSyncResult.reviewRequestList.length > 0 ? 1 : -1;
+      return repo.lastSuccessfulSyncResult.reviewRequestList.length > 0
+        ? 1
+        : -1;
     } else {
       // Show a yellow icon:
       return 0;
@@ -130,9 +145,9 @@ async function syncRepo(repo: RepoState, gitHubUserId: number): Promise<number> 
 }
 
 export async function listPullRequests(
-    repo: RepoState,
-    pageNumber: number,
-    retryNumber = 0,
+  repo: RepoState,
+  pageNumber: number,
+  retryNumber = 0,
 ): Promise<PullsListResponseType> {
   try {
     // A little hack just to get repo owner and name:
@@ -164,7 +179,7 @@ export async function listPullRequests(
 }
 
 function delay(milliseconds: number) {
-  return new Promise(resolve => {
+  return new Promise((resolve) => {
     setTimeout(resolve, milliseconds);
   });
 }

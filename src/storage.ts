@@ -11,11 +11,7 @@ export class Repo {
 
   // TODO(4): add support for when somebody submits you a new review, mention, etc.?
 
-  constructor(
-      owner: string,
-      name: string,
-      monitoringEnabled = true,
-  ) {
+  constructor(owner: string, name: string, monitoringEnabled = true) {
     this.owner = owner;
     this.name = name;
     this.monitoringEnabled = monitoringEnabled;
@@ -25,11 +21,7 @@ export class Repo {
   // NOTE:
   // https://stackoverflow.com/questions/34031448/typescript-typeerror-myclass-myfunction-is-not-a-function
   static of(repo: Repo): Repo {
-    return new Repo(
-        repo.owner,
-        repo.name,
-        repo.monitoringEnabled,
-    );
+    return new Repo(repo.owner, repo.name, repo.monitoringEnabled);
   }
 
   static fromFullName(fullName: string, monitoringEnabled = true): Repo {
@@ -40,9 +32,9 @@ export class Repo {
     }
 
     return new Repo(
-        fullName.substring(0, p),
-        fullName.substring(p + 1),
-        monitoringEnabled,
+      fullName.substring(0, p),
+      fullName.substring(p + 1),
+      monitoringEnabled,
     );
   }
 
@@ -67,7 +59,6 @@ class RepoStateList {
   }
 }
 
-
 export class RepoState {
   readonly fullName: string;
   lastSyncResult: RepoSyncResult;
@@ -75,9 +66,9 @@ export class RepoState {
   lastSuccessfulSyncResult: RepoSyncResult;
 
   constructor(
-      repoFullName: string = undefined,
-      lastSyncResult: RepoSyncResult = undefined,
-      lastSuccessfulSyncResult: RepoSyncResult = undefined,
+    repoFullName: string = undefined,
+    lastSyncResult: RepoSyncResult = undefined,
+    lastSuccessfulSyncResult: RepoSyncResult = undefined,
   ) {
     this.fullName = repoFullName;
     this.lastSyncResult = lastSyncResult;
@@ -88,11 +79,11 @@ export class RepoState {
   // https://stackoverflow.com/questions/34031448/typescript-typeerror-myclass-myfunction-is-not-a-function
   static of(repoState: RepoState): RepoState {
     return new RepoState(
-        repoState.fullName,
-        RepoSyncResult.of(repoState.lastSyncResult),
-        repoState.lastSuccessfulSyncResult
-            ? RepoSyncResult.of(repoState.lastSuccessfulSyncResult)
-            : undefined,
+      repoState.fullName,
+      RepoSyncResult.of(repoState.lastSyncResult),
+      repoState.lastSuccessfulSyncResult
+        ? RepoSyncResult.of(repoState.lastSuccessfulSyncResult)
+        : undefined,
     );
   }
 }
@@ -108,9 +99,9 @@ export class RepoSyncResult {
   errorMsg: string;
 
   constructor(
-      reviewRequestList: ReviewRequest[] = undefined,
-      syncStartUnixMillis: number = undefined,
-      errorMsg: string = undefined,
+    reviewRequestList: ReviewRequest[] = undefined,
+    syncStartUnixMillis: number = undefined,
+    errorMsg: string = undefined,
   ) {
     this.reviewRequestList = reviewRequestList;
     this.syncStartUnixMillis = syncStartUnixMillis;
@@ -126,14 +117,14 @@ export class RepoSyncResult {
   // https://stackoverflow.com/questions/34031448/typescript-typeerror-myclass-myfunction-is-not-a-function
   static of(repoSyncResult: RepoSyncResult): RepoSyncResult {
     const reviewRequestList = repoSyncResult.reviewRequestList
-        ? repoSyncResult.reviewRequestList.map((v) => {
+      ? repoSyncResult.reviewRequestList.map((v) => {
           return new ReviewRequest(v.pr, v.firstTimeObservedUnixMillis);
         })
-        : undefined;
+      : undefined;
     return new RepoSyncResult(
-        reviewRequestList,
-        repoSyncResult.syncStartUnixMillis,
-        repoSyncResult.errorMsg,
+      reviewRequestList,
+      repoSyncResult.syncStartUnixMillis,
+      repoSyncResult.errorMsg,
     );
   }
 }
@@ -172,7 +163,9 @@ export class GitHubUser {
 
 // Repo storage:
 
-export async function storeReposMap(reposByFullName: Map<string, Repo>): Promise<RepoList> {
+export async function storeReposMap(
+  reposByFullName: Map<string, Repo>,
+): Promise<RepoList> {
   console.log("Storing repos");
   const repos = [] as Repo[];
   reposByFullName.forEach((repo: Repo) => {
@@ -183,42 +176,50 @@ export async function storeReposMap(reposByFullName: Map<string, Repo>): Promise
 
 export async function getRepos(): Promise<Repo[]> {
   return (
-      getBucket<RepoList>(REPO_STORE_KEY, "sync")
-          .get()
-          // storage returns an Object, not a Repo...
-          .then((l) => (l && l.repos) ? l.repos.map((v) => Repo.of(v)) : [])
+    getBucket<RepoList>(REPO_STORE_KEY, "sync")
+      .get()
+      // storage returns an Object, not a Repo...
+      .then((l) => (l && l.repos ? l.repos.map((v) => Repo.of(v)) : []))
   );
 }
 
 // RepoState storage:
 
-export async function storeRepoStateMap(repoStateByFullName: Map<string, RepoState>): Promise<RepoStateList> {
+export async function storeRepoStateMap(
+  repoStateByFullName: Map<string, RepoState>,
+): Promise<RepoStateList> {
   console.log("Storing repos state");
   const repoStateList = [] as RepoState[];
   repoStateByFullName.forEach((repoState: RepoState) => {
     repoStateList.push(repoState);
   });
-  return getBucket<RepoStateList>(REPO_STATE_LIST_STORE_KEY, "sync")
-      .set(new RepoStateList(repoStateList));
+  return getBucket<RepoStateList>(REPO_STATE_LIST_STORE_KEY, "sync").set(
+    new RepoStateList(repoStateList),
+  );
 }
 
-export async function getRepoStateByFullName(): Promise<Map<string, RepoState>> {
+export async function getRepoStateByFullName(): Promise<
+  Map<string, RepoState>
+> {
   return getRepoStateList().then((repoStateList) => {
     const result = new Map<string, RepoState>();
-    repoStateList.forEach((repoState) => result.set(repoState.fullName, repoState));
+    repoStateList.forEach((repoState) =>
+      result.set(repoState.fullName, repoState),
+    );
     return result;
   });
 }
 
 async function getRepoStateList(): Promise<RepoState[]> {
   return (
-      getBucket<RepoStateList>(REPO_STATE_LIST_STORE_KEY, "sync")
-          .get()
-          // storage returns an Object, not a Repo...
-          .then((l) => {
-            return (l && l.repoStateList) ?
-                l.repoStateList.map((v) => RepoState.of(v)) : [];
-          })
+    getBucket<RepoStateList>(REPO_STATE_LIST_STORE_KEY, "sync")
+      .get()
+      // storage returns an Object, not a Repo...
+      .then((l) => {
+        return l && l.repoStateList
+          ? l.repoStateList.map((v) => RepoState.of(v))
+          : [];
+      })
   );
 }
 
