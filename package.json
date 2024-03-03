@@ -1,7 +1,7 @@
 {
-  "name": "chrome-extension-webpack",
-  "version": "0.2.0",
-  "description": "Get started with Chrome extensions development using webpack, Typescript, Sass, and more",
+  "name": "your-turn-pr-review",
+  "version": "0.1.0",
+  "description": "Your Turn - PR review",
   "scripts": {
     "start": "webpack --watch --config webpack.dev.js",
     "build": "webpack --config webpack.prod.js",

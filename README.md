@@ -1,23 +1,4 @@
-![Chrome Extension Webpack](https://user-images.githubusercontent.com/21238816/147307879-a3cb179e-3368-412a-88db-284474183884.png)
-Get started with Chrome extensions development using webpack, TypeScript, Sass, and more.
-
-[!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/sszczep)
-
-## Features
-
-Chrome Extension Webpack is a simple boilerplate for fast extension development. It helps writing modern TypeScript code with SCSS support. 
-It is meant to be lightweight and scalable, hence easily adaptable to your needs.
-
-It features:
-- [Chrome Extension Manifest V3](https://developer.chrome.com/docs/extensions/mv3/intro/)
-- [Webpack 5](https://webpack.js.org)
-- [TypeScript](https://www.typescriptlang.org)
-- [Sass](https://sass-lang.com)
-- [Babel](https://babeljs.io/)
-- [ESLint](https://eslint.org/)
-- [Prettier](https://prettier.io/)
-
-If you need React support, please check this awesome boilerplate created by [Michael Xieyang Liu](https://github.com/lxieyang): [chrome-extension-boilerplate-react](https://github.com/lxieyang/chrome-extension-boilerplate-react).
+# Your Turn - PR Review
 
 ## Getting started
 
