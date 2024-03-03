@@ -6,7 +6,7 @@
   "background": {
     "service_worker": "serviceWorker.js"
   },
-  "permissions": ["storage", "scripting"],
+  "permissions": ["storage"],
   "options_ui": {
     "page": "options.html",
     "open_in_tab": true
