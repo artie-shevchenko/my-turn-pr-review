@@ -82,6 +82,7 @@ function showError(e: Error) {
   document.getElementById("auth").style.display = "block";
   if (e instanceof NoGitHubToken) {
     // That's a part of the init flow, not an error.
+    document.getElementById("setup").style.display = "block";
   } else {
     const errorDiv = document.getElementById("error");
     errorDiv.style.display = "block";
