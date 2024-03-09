@@ -4,8 +4,10 @@ import {
   getGitHubUser,
   getRepos,
   Repo,
+  RepoState,
   storeGitHubUser,
   storeReposMap,
+  storeRepoStateMap,
 } from "./storage";
 
 const form = document.getElementById("repoForm");
@@ -87,11 +89,14 @@ form.addEventListener("submit", (e) => {
 });
 
 document.getElementById("deleteToken").addEventListener("click", function () {
-  storeGitHubUser(null).then(
-    () =>
-      (document.getElementById("main").innerHTML =
-        "<h1>Click on the extension icon in the toolbar to enter a new token.</h1>"),
-  );
+  storeGitHubUser(null)
+    .then(() => storeReposMap(new Map<string, Repo>()))
+    .then(() => storeRepoStateMap(new Map<string, RepoState>()))
+    .then(
+      () =>
+        (document.getElementById("main").innerHTML =
+          "<h1>Click on the extension icon in the toolbar to enter a new token.</h1>"),
+    );
 });
 
 let updatingRepos = false;
