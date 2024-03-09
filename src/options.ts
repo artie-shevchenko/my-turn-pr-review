@@ -57,10 +57,20 @@ function addRepoCheckbox(repoFullname: string, enabled: boolean) {
 form.addEventListener("submit", (e) => {
   e.preventDefault();
   const newRepoInput = document.getElementById("newRepo") as HTMLInputElement;
+  const addRepoErrorDiv = document.getElementById(
+    "addRepoError",
+  ) as HTMLInputElement;
   const newRepoFullName = newRepoInput.value.trim();
 
-  const re = new RegExp("/", "g");
-  if (newRepoFullName.match(re).length != 1) {
+  addRepoErrorDiv.style.display = "none";
+  addRepoErrorDiv.innerHTML = "";
+
+  const repoNameRegExp = new RegExp("/", "g");
+  const regExpMatchArray = newRepoFullName.match(repoNameRegExp);
+  if (!regExpMatchArray || regExpMatchArray.length != 1) {
+    addRepoErrorDiv.style.display = "block";
+    addRepoErrorDiv.innerHTML =
+      "Invalid repository name. Must contain exactly one '/'.";
     return;
   }
 
@@ -68,8 +78,12 @@ form.addEventListener("submit", (e) => {
   if (document.getElementById(newRepoFullName) == undefined) {
     addRepoCheckbox(newRepoFullName, true);
     updateReposToWatchFromCheckboxes();
+    newRepoInput.value = "";
+  } else {
+    addRepoErrorDiv.style.display = "block";
+    addRepoErrorDiv.innerHTML = "Repository already in the list.";
+    return;
   }
-  newRepoInput.value = "";
 });
 
 document.getElementById("deleteToken").addEventListener("click", function () {
