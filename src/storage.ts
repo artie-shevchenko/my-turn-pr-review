@@ -91,7 +91,7 @@ export class RepoState {
 /** A successful or failed sync. */
 export class RepoSyncResult {
   /* Undefined for a failed sync. */
-  reviewRequestList: ReviewRequest[];
+  requestsForMyReview: ReviewRequest[];
 
   syncStartUnixMillis: number;
 
@@ -99,11 +99,11 @@ export class RepoSyncResult {
   errorMsg: string;
 
   constructor(
-    reviewRequestList: ReviewRequest[] = undefined,
+    requestsForMyReview: ReviewRequest[] = undefined,
     syncStartUnixMillis: number = undefined,
     errorMsg: string = undefined,
   ) {
-    this.reviewRequestList = reviewRequestList;
+    this.requestsForMyReview = requestsForMyReview;
     this.syncStartUnixMillis = syncStartUnixMillis;
     this.errorMsg = errorMsg;
   }
@@ -116,13 +116,17 @@ export class RepoSyncResult {
   // Probably better replaced with a dto interface. See
   // https://stackoverflow.com/questions/34031448/typescript-typeerror-myclass-myfunction-is-not-a-function
   static of(repoSyncResult: RepoSyncResult): RepoSyncResult {
-    const reviewRequestList = repoSyncResult.reviewRequestList
-      ? repoSyncResult.reviewRequestList.map((v) => {
-          return new ReviewRequest(v.pr, v.firstTimeObservedUnixMillis);
-        })
-      : undefined;
+    let requestsForMyReview = [] as ReviewRequest[];
+    // The field was renamed, so it will be undefined if user has not yet synced after the extension
+    // update:
+    if (repoSyncResult.requestsForMyReview) {
+      requestsForMyReview = repoSyncResult.requestsForMyReview
+        ? repoSyncResult.requestsForMyReview.map((v) => ReviewRequest.of(v))
+        : undefined;
+    }
+
     return new RepoSyncResult(
-      reviewRequestList,
+      requestsForMyReview,
       repoSyncResult.syncStartUnixMillis,
       repoSyncResult.errorMsg,
     );
@@ -138,6 +142,10 @@ export class ReviewRequest {
   constructor(pr: PR, firstTimeObservedUnixMillis: number) {
     this.pr = pr;
     this.firstTimeObservedUnixMillis = firstTimeObservedUnixMillis;
+  }
+
+  static of(v: ReviewRequest): ReviewRequest {
+    return new ReviewRequest(v.pr, v.firstTimeObservedUnixMillis);
   }
 }
 
