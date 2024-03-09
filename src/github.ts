@@ -169,7 +169,7 @@ export async function listPullRequests(
       },
     });
   } catch (e) {
-    if (retryNumber > 3) {
+    if (retryNumber > 2) {
       console.error("The maximum number of retries reached");
       throw e;
     } else {
