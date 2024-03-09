@@ -56,9 +56,8 @@ function addRepoCheckbox(repoFullname: string, enabled: boolean) {
 
 form.addEventListener("submit", (e) => {
   e.preventDefault();
-  const newRepoFullName = (
-    document.getElementById("newRepo") as HTMLInputElement
-  ).value.trim();
+  const newRepoInput = document.getElementById("newRepo") as HTMLInputElement;
+  const newRepoFullName = newRepoInput.value.trim();
 
   const re = new RegExp("/", "g");
   if (newRepoFullName.match(re).length != 1) {
@@ -70,6 +69,7 @@ form.addEventListener("submit", (e) => {
     addRepoCheckbox(newRepoFullName, true);
     updateReposToWatchFromCheckboxes();
   }
+  newRepoInput.value = "";
 });
 
 document.getElementById("deleteToken").addEventListener("click", function () {
