@@ -121,7 +121,7 @@ async function populate() {
           if (lastSyncErrorMsg.endsWith("Not Found")) {
             // TODO(8): test token expiration. We shouldn't end up here I believe.
             message +=
-              " (likely problem is with token scopes or SSO configuration. Probably, go to the options page, delete token and start over again carefully following the instructions)";
+              " (probably, it doesn't exist, but it may also be a problem with token scopes or SSO configuration. As an option, you may click 'Options...' and reset extension configuration)";
           }
           return message;
         })
