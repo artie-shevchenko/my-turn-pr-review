@@ -27,11 +27,20 @@
   </form>
 </div>
 <div id="main" class="container" style="display:none">
+  <h2>Outcoming reviews</h2>
   <table id="prTable">
     <tr class="prTableHeader">
       <td class="repoColumn">Repo</td>
-      <td class="prTitleColumn">Pull Request</td>
+      <td class="theirPrTitleColumn">Pull Request</td>
       <td>Hours you've ignored it for*</td>
+    </tr>
+  </table>
+  <h2>Incoming reviews</h2>
+  <table id="myPrTable">
+    <tr class="prTableHeader">
+      <td class="repoColumn">Repo</td>
+      <td class="myPrTitleColumn">Pull Request</td>
+      <td>State</td>
     </tr>
   </table>
   <span class="footnotes">&nbsp;* From the plugin's perspective. Please upvote

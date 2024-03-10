@@ -1,26 +1,38 @@
-import { octokit } from "./serviceWorker";
-import {
-  getRepos,
-  getRepoStateByFullName,
-  PR,
-  Repo,
-  RepoState,
-  RepoSyncResult,
-  ReviewRequest,
-  storeRepoStateMap,
-} from "./storage";
 import {
   GetResponseDataTypeFromEndpointMethod,
   GetResponseTypeFromEndpointMethod,
 } from "@octokit/types";
+import { octokit } from "./serviceWorker";
+import {
+  getRepos,
+  getRepoStateByFullName,
+  MyPR,
+  MyPRReviewStatus,
+  PR,
+  Repo,
+  RepoState,
+  RepoSyncResult,
+  ReviewOnMyPR,
+  ReviewRequest,
+  ReviewRequestOnMyPR,
+  ReviewState,
+  storeRepoStateMap,
+} from "./storage";
 
 const PULLS_PER_PAGE = 100;
+const REVIEWS_PER_PAGE = 100;
 
 type PullsListResponseType = GetResponseTypeFromEndpointMethod<
   typeof octokit.pulls.list
 >;
 type PullsListResponseDataType = GetResponseDataTypeFromEndpointMethod<
   typeof octokit.pulls.list
+>;
+type PullsListReviewsResponseType = GetResponseTypeFromEndpointMethod<
+  typeof octokit.pulls.listReviews
+>;
+type PullsListReviewsResponseDataType = GetResponseDataTypeFromEndpointMethod<
+  typeof octokit.pulls.listReviews
 >;
 
 let gitHubCallsCounter = 0;
@@ -90,57 +102,47 @@ async function syncRepo(
 ): Promise<number> {
   const repoSyncResult = new RepoSyncResult();
   repoSyncResult.syncStartUnixMillis = Date.now();
-  try {
-    let prList: PullsListResponseDataType = [];
-    let pageNumber = 1;
-    let pullsListBatch = await listPullRequests(repo, pageNumber);
-    while (pullsListBatch.data.length >= PULLS_PER_PAGE) {
-      prList = prList.concat(pullsListBatch.data);
-      pageNumber++;
-      pullsListBatch = await listPullRequests(repo, pageNumber);
-    }
-    prList = prList.concat(pullsListBatch.data);
+  const requestsForMyReviewBuilder = [] as ReviewRequest[];
+  const myPRsBuilder = [] as MyPR[];
 
-    console.log(`Total ${prList.length} PRs in: ${repo.fullName}.`);
-    const requestsForMyReviewBuilder = [] as ReviewRequest[];
-    prList.forEach((pr) => {
-      pr.requested_reviewers.forEach((reviewer) => {
-        if (reviewer.id === gitHubUserId) {
-          const url = pr.html_url;
-          let matchingReviewRequests = [] as ReviewRequest[];
-          if (repo.lastSuccessfulSyncResult) {
-            matchingReviewRequests =
-              repo.lastSuccessfulSyncResult.requestsForMyReview.filter(
-                (existing) => {
-                  const existingUrl = existing.pr.url;
-                  return existingUrl === url;
-                },
-              );
-          }
-          // To have an up-to-date title:
-          const pullRequest = new PR(url, pr.title);
-          if (matchingReviewRequests.length == 0) {
-            requestsForMyReviewBuilder.push(
-              new ReviewRequest(pullRequest, Date.now()),
-            );
-          } else {
-            const existingReviewRequest = matchingReviewRequests[0];
-            requestsForMyReviewBuilder.push(
-              new ReviewRequest(
-                pullRequest,
-                existingReviewRequest.firstTimeObservedUnixMillis,
-              ),
-            );
-          }
+  try {
+    let pageNumber = 1;
+    let pullsListResponse: PullsListResponseType;
+    do {
+      pullsListResponse = await listPullRequests(repo, pageNumber);
+      for (const arrayElement of pullsListResponse.data) {
+        const pr = arrayElement as PullsListResponseDataType[0];
+        if (pr.user.id == gitHubUserId) {
+          const myPR = await syncMyPR(pr, repo);
+          myPRsBuilder.push(myPR);
+        } else {
+          // Somebody else's PR
+          pr.requested_reviewers.forEach((reviewer) => {
+            if (reviewer.id === gitHubUserId) {
+              const reviewRequest = syncRequestForMyReview(pr, repo);
+              requestsForMyReviewBuilder.push(reviewRequest);
+            }
+          });
         }
-      });
-    });
+      }
+      pageNumber++;
+    } while (pullsListResponse.data.length > 0);
+
     // If review request was withdrawn and then re-requested again the first request will be
     // (correctly) ignored:
     repoSyncResult.requestsForMyReview = requestsForMyReviewBuilder;
+    repoSyncResult.myPRs = myPRsBuilder;
     repo.lastSuccessfulSyncResult = repoSyncResult;
     repo.lastSyncResult = repoSyncResult;
-    return repoSyncResult.requestsForMyReview.length > 0 ? 1 : -1;
+    const requestForMyReviewResult =
+      repoSyncResult.requestsForMyReview.length > 0 ? 1 : -1;
+    // Yellow max based on myPRs. TODO(36): make it user-configurable:
+    const myPRsResult = repoSyncResult.myPRs.some(
+      (pr) => pr.getStatus() != MyPRReviewStatus.NONE,
+    )
+      ? 0
+      : -1;
+    return Math.max(requestForMyReviewResult, myPRsResult);
   } catch (e) {
     console.warn(
       `Error listing pull requests from ${repo.fullName}. Ignoring it.`,
@@ -197,6 +199,109 @@ export async function listPullRequests(
       throw e;
     } else {
       return await listPullRequests(repo, pageNumber, retryNumber + 1);
+    }
+  }
+}
+
+async function syncMyPR(pr: PullsListResponseDataType[0], repo: RepoState) {
+  const reviewsRequested = pr.requested_reviewers.map((reviewer) => {
+    const url = pr.html_url;
+    // To have an up-to-date title:
+    const pullRequest = new PR(url, pr.title);
+    return new ReviewRequestOnMyPR(pullRequest, reviewer.id);
+  });
+
+  // Now query reviews already received:
+  let reviews: PullsListReviewsResponseDataType = [];
+  let pageNumber = 1;
+  let reviewsBatch = await listReviews(repo, pr.number, pageNumber);
+  while (reviewsBatch.data.length >= REVIEWS_PER_PAGE) {
+    reviews = reviews.concat(reviewsBatch.data);
+    pageNumber++;
+    reviewsBatch = await listReviews(repo, pr.number, pageNumber);
+  }
+  reviews = reviews.concat(reviewsBatch.data);
+
+  const prObj = new PR(pr.html_url, pr.title);
+  const reviewsReceived = reviews.map((review) => {
+    const state = review.state;
+    const typedState = state as keyof typeof ReviewState;
+    return new ReviewOnMyPR(
+      prObj,
+      review.user.id,
+      ReviewState[typedState],
+      Date.parse(review.submitted_at),
+    );
+  });
+  return MyPR.ofGitHubResponses(
+    prObj,
+    reviewsReceived,
+    reviewsRequested,
+    pr.user.id,
+  );
+}
+
+function syncRequestForMyReview(
+  pr: PullsListResponseDataType[0],
+  repo: RepoState,
+): ReviewRequest {
+  const url = pr.html_url;
+  let matchingReviewRequests = [] as ReviewRequest[];
+  if (
+    repo.lastSuccessfulSyncResult &&
+    repo.lastSuccessfulSyncResult.requestsForMyReview
+  ) {
+    matchingReviewRequests =
+      repo.lastSuccessfulSyncResult.requestsForMyReview.filter((existing) => {
+        const existingUrl = existing.pr.url;
+        return existingUrl === url;
+      });
+  }
+  // To have an up-to-date title:
+  const pullRequest = new PR(url, pr.title);
+  if (matchingReviewRequests.length == 0) {
+    return new ReviewRequest(pullRequest, Date.now());
+  } else {
+    const existingReviewRequest = matchingReviewRequests[0];
+    return new ReviewRequest(
+      pullRequest,
+      existingReviewRequest.firstTimeObservedUnixMillis,
+    );
+  }
+}
+
+export async function listReviews(
+  repo: RepoState,
+  pullNumber: number,
+  pageNumber: number,
+  retryNumber = 0,
+): Promise<PullsListReviewsResponseType> {
+  try {
+    // A little hack just to get repo owner and name:
+    const r = Repo.fromFullName(repo.fullName);
+    if (retryNumber > 0) {
+      // exponential backoff:
+      await delay(1000 * Math.pow(2, retryNumber - 1));
+    }
+    gitHubCallsCounter++;
+    return await octokit.pulls.listReviews({
+      owner: r.owner,
+      repo: r.name,
+      pull_number: pullNumber,
+      per_page: PULLS_PER_PAGE,
+      page: pageNumber,
+      headers: {
+        "X-GitHub-Api-Version": "2022-11-28",
+        // no caching:
+        "If-None-Match": "",
+      },
+    });
+  } catch (e) {
+    if (retryNumber > 2) {
+      console.error("The maximum number of retries reached");
+      throw e;
+    } else {
+      return await listReviews(repo, pullNumber, pageNumber, retryNumber + 1);
     }
   }
 }
