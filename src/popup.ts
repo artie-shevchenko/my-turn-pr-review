@@ -5,7 +5,7 @@ import {
   getRepoStateByFullName,
   GitHubUser,
   Repo,
-  ReviewRequest,
+  RepoState,
   storeGitHubUser,
 } from "./storage";
 import { Octokit } from "@octokit/rest";
@@ -100,24 +100,42 @@ async function populate() {
       // ignore repos which are not synced yet (sync is definitely in progress):
       repoStateByFullName.get(r.fullName()),
   );
+  const syncSuccessRepos = repos
+    .filter((r) => {
+      const repoState = repoStateByFullName.get(r.fullName());
+      return (
+        repoState.lastSuccessfulSyncResult &&
+        repoState.lastSuccessfulSyncResult.isRecent()
+      );
+    })
+    .map((r) => repoStateByFullName.get(r.fullName()));
+  const syncFailureRepos = repos
+    .filter((r) => {
+      const repoState = repoStateByFullName.get(r.fullName());
+      return (
+        !repoState.lastSuccessfulSyncResult ||
+        !repoState.lastSuccessfulSyncResult.isRecent()
+      );
+    })
+    .map((r) => repoStateByFullName.get(r.fullName()));
 
-  const reposWithProblems = repos.filter((r) => {
-    const repoState = repoStateByFullName.get(r.fullName());
-    console.assert(
-      repoState.lastSyncResult,
-      "No last sync? " + repoState.lastSyncResult,
-    );
-    return repoState.lastSyncResult.errorMsg;
-  });
+  populateFromState(syncSuccessRepos, syncFailureRepos);
+}
+
+async function populateFromState(
+  syncSuccessRepos: RepoState[],
+  syncFailureRepos: RepoState[],
+) {
+  // All the repos monitored should be mentioned either in repoListSection or
+  // repoWarnSection:
   const repoWarnSection = document.getElementById("repoWarn");
-  if (reposWithProblems.length > 0) {
+  if (syncFailureRepos.length > 0) {
     repoWarnSection.innerHTML =
       "Attention! Couldn't sync with the following GitHub repos:<br/>" +
-      reposWithProblems
-        .map((r) => {
-          const repoState = repoStateByFullName.get(r.fullName());
-          const lastSyncErrorMsg = repoState.lastSyncResult.errorMsg;
-          let message = r.fullName() + " - " + lastSyncErrorMsg;
+      syncFailureRepos
+        .map((repo) => {
+          const lastSyncErrorMsg = repo.lastSyncResult.errorMsg;
+          let message = repo.fullName + " - " + lastSyncErrorMsg;
           if (lastSyncErrorMsg.endsWith("Not Found")) {
             // TODO(8): test token expiration. We shouldn't end up here I believe.
             message +=
@@ -129,34 +147,24 @@ async function populate() {
   } else {
     repoWarnSection.innerHTML = "";
   }
+
+  const minSuccessSyncStartUnixMillis = Math.min(
+    ...syncSuccessRepos.map(
+      (r) => r.lastSuccessfulSyncResult.syncStartUnixMillis,
+    ),
+  );
+
   const repoListSection = document.getElementById("repoList");
   repoListSection.innerHTML =
     "Repos monitored: " +
-    repos
-      // All the repos monitored should be mentioned either in repoListSection or
-      // repoWarnSection:
-      .filter(
-        (r) => !repoStateByFullName.get(r.fullName()).lastSyncResult.errorMsg,
-      )
-      .map((r) => r.fullName())
-      .join(", ");
+    syncSuccessRepos.map((repo) => repo.fullName).join(", ") +
+    ".<br/>Last sync: " +
+    new Date(minSuccessSyncStartUnixMillis).toLocaleString();
 
-  const reviewsRequested = repos
+  const reviewsRequested = syncSuccessRepos
     .flatMap((repo) => {
-      const repoState = repoStateByFullName.get(repo.fullName());
-      if (!repoState) {
-        return [] as ReviewRequest[];
-      }
-      if (
-        !repoState.lastSuccessfulSyncResult ||
-        !repoState.lastSuccessfulSyncResult.isRecent()
-      ) {
-        // After 5 minutes of unsuccessful syncs, don't visualize the reviews requested:
-        return [] as ReviewRequest[];
-      }
-
-      return repoState.lastSuccessfulSyncResult.reviewRequestList.map((v) => {
-        v.repoFullName = repo.owner + " / " + repo.name;
+      return repo.lastSuccessfulSyncResult.reviewRequestList.map((v) => {
+        v.repoFullName = repo.fullName;
         return v;
       });
     })
