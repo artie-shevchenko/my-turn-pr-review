@@ -80,7 +80,7 @@ async function syncRepo(
     prList = prList.concat(pullsListBatch.data);
 
     console.log(`Total ${prList.length} PRs in: ${repo.fullName}.`);
-    const newReviewsRequested = [] as ReviewRequest[];
+    const requestsForMyReviewBuilder = [] as ReviewRequest[];
     prList.forEach((pr) => {
       pr.requested_reviewers.forEach((reviewer) => {
         if (reviewer.id === gitHubUserId) {
@@ -88,7 +88,7 @@ async function syncRepo(
           let matchingReviewRequests = [] as ReviewRequest[];
           if (repo.lastSuccessfulSyncResult) {
             matchingReviewRequests =
-              repo.lastSuccessfulSyncResult.reviewRequestList.filter(
+              repo.lastSuccessfulSyncResult.requestsForMyReview.filter(
                 (existing) => {
                   const existingUrl = existing.pr.url;
                   return existingUrl === url;
@@ -98,12 +98,12 @@ async function syncRepo(
           // To have an up-to-date title:
           const pullRequest = new PR(url, pr.title);
           if (matchingReviewRequests.length == 0) {
-            newReviewsRequested.push(
+            requestsForMyReviewBuilder.push(
               new ReviewRequest(pullRequest, Date.now()),
             );
           } else {
             const existingReviewRequest = matchingReviewRequests[0];
-            newReviewsRequested.push(
+            requestsForMyReviewBuilder.push(
               new ReviewRequest(
                 pullRequest,
                 existingReviewRequest.firstTimeObservedUnixMillis,
@@ -115,10 +115,10 @@ async function syncRepo(
     });
     // If review request was withdrawn and then re-requested again the first request will be
     // (correctly) ignored:
-    repoSyncResult.reviewRequestList = newReviewsRequested;
+    repoSyncResult.requestsForMyReview = requestsForMyReviewBuilder;
     repo.lastSuccessfulSyncResult = repoSyncResult;
     repo.lastSyncResult = repoSyncResult;
-    return repoSyncResult.reviewRequestList.length > 0 ? 1 : -1;
+    return repoSyncResult.requestsForMyReview.length > 0 ? 1 : -1;
   } catch (e) {
     console.warn(
       `Error listing pull requests from ${repo.fullName}. Ignoring it.`,
@@ -134,7 +134,7 @@ async function syncRepo(
       repo.lastSuccessfulSyncResult.isRecent()
     ) {
       // Use the last successful sync results:
-      return repo.lastSuccessfulSyncResult.reviewRequestList.length > 0
+      return repo.lastSuccessfulSyncResult.requestsForMyReview.length > 0
         ? 1
         : -1;
     } else {

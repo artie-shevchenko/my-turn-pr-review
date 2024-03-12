@@ -163,7 +163,7 @@ async function populateFromState(
 
   const reviewsRequested = syncSuccessRepos
     .flatMap((repo) => {
-      return repo.lastSuccessfulSyncResult.reviewRequestList.map((v) => {
+      return repo.lastSuccessfulSyncResult.requestsForMyReview.map((v) => {
         v.repoFullName = repo.fullName;
         return v;
       });
