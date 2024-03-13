@@ -23,11 +23,31 @@ type PullsListResponseDataType = GetResponseDataTypeFromEndpointMethod<
   typeof octokit.pulls.list
 >;
 
+let gitHubCallsCounter = 0;
+let syncStartUnixMillis = 0;
+
+// ensures we don't get throttled by GitHub
+export async function throttle() {
+  const secondsSinceLastSyncStart = (Date.now() - syncStartUnixMillis) / 1000;
+  if (secondsSinceLastSyncStart < gitHubCallsCounter) {
+    // to be on a safe side target 1 RPS (it's 5000 requests per hour quota):
+    const waitMs = (gitHubCallsCounter - secondsSinceLastSyncStart) * 1000;
+    console.log("Throttling GitHub calls to 1 RPS. Waiting for " + waitMs);
+    await delay(waitMs);
+  }
+}
+
 /**
  * Returns negative if all good, 0 if attention may be needed or positive if attention is required
  * for some PRs. TODO: return enum instead.
+ *
+ * No concurrent calls!
  */
 export async function sync(gitHubUserId: number): Promise<number> {
+  await throttle();
+
+  gitHubCallsCounter = 0;
+  syncStartUnixMillis = Date.now();
   const reposByFullName = await getRepos();
   const repoStateByFullName = await getRepoStateByFullName();
   const newRepoStateByFullName = new Map<string, RepoState>();
@@ -53,6 +73,8 @@ export async function sync(gitHubUserId: number): Promise<number> {
 
   // Update in background:
   storeRepoStateMap(newRepoStateByFullName);
+
+  console.log(gitHubCallsCounter + " GitHub API calls in the last sync");
 
   return result;
 }
@@ -156,6 +178,7 @@ export async function listPullRequests(
       // exponential backoff:
       await delay(1000 * Math.pow(2, retryNumber - 1));
     }
+    gitHubCallsCounter++;
     return await octokit.pulls.list({
       owner: r.owner,
       repo: r.name,
