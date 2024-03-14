@@ -1,5 +1,5 @@
 body {
-  background-color: #fefaa1;
+  background-color: #fffedd;
   margin: 0;
 }
 .container {
@@ -36,8 +36,11 @@ td {
 .repoColumn {
   width: 20%;
 }
-.prTitleColumn {
+.theirPrTitleColumn {
   width: 60%;
+}
+.myPrTitleColumn {
+  width: 64%;
 }
 .footnotes {
   font-size: smaller;
