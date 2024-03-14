@@ -93,6 +93,9 @@ export class RepoSyncResult {
   /* Undefined for a failed sync. */
   requestsForMyReview: ReviewRequest[];
 
+  /* Undefined for a failed sync. */
+  myPRs: MyPR[];
+
   syncStartUnixMillis: number;
 
   /* Undefined for a successful sync. */
@@ -100,10 +103,12 @@ export class RepoSyncResult {
 
   constructor(
     requestsForMyReview: ReviewRequest[] = undefined,
+    myPRs: MyPR[] = undefined,
     syncStartUnixMillis: number = undefined,
     errorMsg: string = undefined,
   ) {
     this.requestsForMyReview = requestsForMyReview;
+    this.myPRs = myPRs;
     this.syncStartUnixMillis = syncStartUnixMillis;
     this.errorMsg = errorMsg;
   }
@@ -125,11 +130,177 @@ export class RepoSyncResult {
         : undefined;
     }
 
+    const myPRs = repoSyncResult.myPRs?.map((v) => MyPR.of(v)) || [];
+
     return new RepoSyncResult(
       requestsForMyReview,
+      myPRs,
       repoSyncResult.syncStartUnixMillis,
       repoSyncResult.errorMsg,
     );
+  }
+}
+
+// #NOT_MATURE: reused both for reviews and review requests.
+export enum ReviewState {
+  REQUESTED,
+  COMMENTED,
+  CHANGES_REQUESTED,
+  APPROVED,
+}
+
+// APPROVED or APPROVED_AND_COMMENTED possible only if reviewsRequested is empty.
+export enum MyPRReviewStatus {
+  // NONE stands for "Ball is still on the other side" (ignore this PR):
+  NONE,
+  CHANGES_REQUESTED,
+  APPROVED,
+  APPROVED_AND_COMMENTED,
+  COMMENTED,
+}
+
+export class ReviewerState {
+  reviewerId: number;
+  state: ReviewState;
+
+  constructor(reviewerId: number, state: ReviewState) {
+    this.reviewerId = reviewerId;
+    this.state = state;
+  }
+}
+
+export class MyPR {
+  pr: PR;
+  reviewerStates: ReviewerState[];
+
+  // #NOT_MATURE: lazily populated in popup.ts:
+  repoFullName: string;
+
+  static ofGitHubResponses(
+    pr: PR,
+    reviewsReceived: ReviewOnMyPR[],
+    reviewsRequested: ReviewRequestOnMyPR[],
+    myUserId: number,
+  ): MyPR {
+    reviewsReceived.sort(
+      (a, b) => a.submittedAtUnixMillis - b.submittedAtUnixMillis,
+    );
+    const reviewerIds = new Set<number>();
+    // Map them by reviewer ID:
+    const reviewByReviewerId = new Map<number, ReviewOnMyPR[]>();
+    for (const review of reviewsReceived) {
+      let list = reviewByReviewerId.get(review.reviewerId);
+      if (!list) {
+        list = [];
+        reviewByReviewerId.set(review.reviewerId, list);
+      }
+      list.push(review);
+      reviewerIds.add(review.reviewerId);
+    }
+    const reviewRequestByReviewerId = new Map<number, ReviewRequestOnMyPR>();
+    for (const reviewRequested of reviewsRequested) {
+      reviewRequestByReviewerId.set(
+        reviewRequested.reviewerId,
+        reviewRequested,
+      );
+      reviewerIds.add(reviewRequested.reviewerId);
+    }
+
+    const reviewerStateBuilder = [] as ReviewerState[];
+    for (const reviewerId of reviewerIds) {
+      if (reviewerId === myUserId) {
+        continue;
+      }
+
+      if (reviewRequestByReviewerId.get(reviewerId)) {
+        reviewerStateBuilder.push(
+          new ReviewerState(reviewerId, ReviewState.REQUESTED),
+        );
+        continue;
+      }
+
+      const sortedReviews = reviewByReviewerId.get(reviewerId);
+      // Same as visualized in GitHub UI:
+      const lastReviewState = sortedReviews
+        .map((r) => r.state)
+        .reduce((result, currentState) => {
+          if (result == null) {
+            // That's the only way it can become COMMENTED:
+            return currentState;
+          } else {
+            if (
+              currentState === ReviewState.APPROVED ||
+              currentState === ReviewState.CHANGES_REQUESTED
+            ) {
+              return currentState;
+            } else {
+              // Preserve the current state:
+              return result;
+            }
+          }
+        }, null);
+      reviewerStateBuilder.push(new ReviewerState(reviewerId, lastReviewState));
+    }
+    return new MyPR(pr, reviewerStateBuilder);
+  }
+
+  constructor(pr: PR, reviewerStates: ReviewerState[]) {
+    this.pr = pr;
+    this.reviewerStates = reviewerStates;
+  }
+
+  getStatus(): MyPRReviewStatus {
+    const states = [] as ReviewState[];
+    this.reviewerStates.forEach((reviewerState) => {
+      states.push(reviewerState.state);
+    });
+
+    if (states.every((state) => state === ReviewState.CHANGES_REQUESTED)) {
+      return MyPRReviewStatus.NONE;
+    } else if (
+      states.some((state) => state === ReviewState.CHANGES_REQUESTED)
+    ) {
+      return MyPRReviewStatus.CHANGES_REQUESTED;
+    } else if (states.some((state) => state === ReviewState.COMMENTED)) {
+      if (states.some((state) => state === ReviewState.APPROVED)) {
+        if (states.some((state) => state === ReviewState.REQUESTED)) {
+          return MyPRReviewStatus.COMMENTED;
+        } else {
+          return MyPRReviewStatus.APPROVED_AND_COMMENTED;
+        }
+      } else {
+        return MyPRReviewStatus.COMMENTED;
+      }
+    } else {
+      if (states.some((state) => state === ReviewState.REQUESTED)) {
+        return MyPRReviewStatus.NONE;
+      } else {
+        return MyPRReviewStatus.APPROVED;
+      }
+    }
+  }
+
+  static of(v: MyPR): MyPR {
+    return new MyPR(v.pr, v.reviewerStates ? v.reviewerStates : []);
+  }
+}
+
+export class ReviewOnMyPR {
+  pr: PR;
+  reviewerId: number;
+  state: ReviewState;
+  submittedAtUnixMillis: number;
+
+  constructor(
+    pr: PR,
+    reviewerId: number,
+    state: ReviewState,
+    submittedAtUnixMillis: number,
+  ) {
+    this.pr = pr;
+    this.reviewerId = reviewerId;
+    this.state = state;
+    this.submittedAtUnixMillis = submittedAtUnixMillis;
   }
 }
 
@@ -146,6 +317,20 @@ export class ReviewRequest {
 
   static of(v: ReviewRequest): ReviewRequest {
     return new ReviewRequest(v.pr, v.firstTimeObservedUnixMillis);
+  }
+}
+
+export class ReviewRequestOnMyPR {
+  pr: PR;
+  reviewerId: number;
+
+  constructor(pr: PR, reviewerId: number) {
+    this.pr = pr;
+    this.reviewerId = reviewerId;
+  }
+
+  static of(v: ReviewRequestOnMyPR): ReviewRequestOnMyPR {
+    return new ReviewRequestOnMyPR(v.pr, v.reviewerId);
   }
 }
 
@@ -201,7 +386,7 @@ export async function storeRepoStateMap(
   repoStateByFullName.forEach((repoState: RepoState) => {
     repoStateList.push(repoState);
   });
-  return getBucket<RepoStateList>(REPO_STATE_LIST_STORE_KEY, "sync").set(
+  return getBucket<RepoStateList>(REPO_STATE_LIST_STORE_KEY, "local").set(
     new RepoStateList(repoStateList),
   );
 }
@@ -220,7 +405,7 @@ export async function getRepoStateByFullName(): Promise<
 
 async function getRepoStateList(): Promise<RepoState[]> {
   return (
-    getBucket<RepoStateList>(REPO_STATE_LIST_STORE_KEY, "sync")
+    getBucket<RepoStateList>(REPO_STATE_LIST_STORE_KEY, "local")
       .get()
       // storage returns an Object, not a Repo...
       .then((l) => {
