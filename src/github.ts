@@ -44,14 +44,15 @@ export async function throttle() {
   if (secondsSinceLastSyncStart < 2 * gitHubCallsCounter) {
     // to be on a safe side target 0.5 RPS (it's 5000 requests per hour quota):
     const waitMs = (2 * gitHubCallsCounter - secondsSinceLastSyncStart) * 1000;
-    console.log("Throttling GitHub calls to 1 RPS. Waiting for " + waitMs);
+    console.log(
+      "Throttling GitHub calls to 0.5 RPS. Waiting for " + waitMs + "ms",
+    );
     await delay(waitMs);
   }
 }
 
 /**
- * Returns negative if all good, 0 if attention may be needed or positive if attention is required
- * for some PRs. TODO: return enum instead.
+ * Returns 2 for grey icon, 1 for red, 0 for yellow, -1 for green. TODO: return enum instead.
  *
  * No concurrent calls!
  */
@@ -93,7 +94,7 @@ export async function sync(gitHubUserId: number): Promise<number> {
 }
 
 /**
- * Returns true if any reviews requested.
+ * Returns 2 for grey icon, 1 for red, 0 for yellow, -1 for green..
  *
  * @param repo The repo state will be updated as a result of the call.
  */
@@ -163,8 +164,8 @@ async function syncRepo(
         ? 1
         : -1;
     } else {
-      // Show a yellow icon:
-      return 0;
+      // Show a grey icon:
+      return 2;
     }
   }
 }

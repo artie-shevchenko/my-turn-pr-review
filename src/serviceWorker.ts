@@ -5,7 +5,7 @@ import { Octokit } from "@octokit/rest";
 chrome.runtime.onInstalled.addListener(async (details) => {
   if (details.reason == "install") {
     chrome.action.setIcon({
-      path: "icons/yellow128.png",
+      path: "icons/grey128.png",
     });
 
     console.log("Extension successfully installed!");
@@ -40,7 +40,7 @@ export async function syncWithGitHub(gitHubUser: GitHubUser) {
     });
   } else {
     chrome.action.setIcon({
-      path: "icons/yellow128.png",
+      path: "icons/grey128.png",
     });
     return;
   }
@@ -55,7 +55,9 @@ export async function syncWithGitHub(gitHubUser: GitHubUser) {
     const syncResult = await sync(gitHubUser.id);
     console.log(`User PRs require attention: ${syncResult}`);
     let iconName: string;
-    if (syncResult > 0) {
+    if (syncResult == 2) {
+      iconName = "grey128.png";
+    } else if (syncResult == 1) {
       iconName = "red128.png";
     } else if (syncResult == 0) {
       iconName = "yellow128.png";

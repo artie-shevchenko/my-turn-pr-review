@@ -124,6 +124,9 @@ async function updateReposToWatchFromCheckboxes() {
     updatingRepos = false;
 
     console.log("Triggering sync as repo set may have changed.");
+    chrome.action.setIcon({
+      path: "icons/grey128.png",
+    });
     getGitHubUser()
       .then((gitHubUser) => {
         syncWithGitHub(gitHubUser);
