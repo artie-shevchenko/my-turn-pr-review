@@ -187,15 +187,19 @@ async function populateFromState(
   );
 
   const repoListSection = document.getElementById("repoList");
-  repoListSection.innerHTML =
-    "Last sync: " +
-    new Date(minSuccessSyncStartUnixMillis).toLocaleString() +
-    "<br/>Repos monitored: " +
-    syncSuccessRepos
-      .map((repo) => repo.fullName)
-      .sort()
-      .join(", ") +
-    ".";
+  if (minSuccessSyncStartUnixMillis) {
+    repoListSection.innerHTML =
+      "Last sync: " +
+      new Date(minSuccessSyncStartUnixMillis).toLocaleString() +
+      "<br/>Repos monitored: " +
+      syncSuccessRepos
+        .map((repo) => repo.fullName)
+        .sort()
+        .join(", ") +
+      ".";
+  } else {
+    repoListSection.innerHTML = "Last sync too old. Syncing... ";
+  }
 
   const requestsForMyReviews = syncSuccessRepos
     .flatMap((repo) => {
