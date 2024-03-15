@@ -92,9 +92,14 @@ function showError(e: Error) {
   } else {
     const errorDiv = document.getElementById("error");
     errorDiv.style.display = "block";
-    errorDiv.innerHTML =
-      "Something went wrong. If the error persists likely the GitHub auth token needs to be updated.<br/><br/>" +
-      e;
+    if (e.message === "Bad credentials") {
+      errorDiv.innerHTML =
+        "Something went wrong. Likely the GitHub access token expired and needs to be updated. Follow the instructions below.<br/><br/>";
+    } else {
+      errorDiv.innerHTML =
+        "Something went wrong. If the error persists it may be a problem with GitHub auth token.<br/><br/>" +
+        e;
+    }
   }
 }
 
@@ -110,18 +115,21 @@ async function populate() {
     .filter((r) => {
       const repoState = repoStateByFullName.get(r.fullName());
       return (
-        repoState.lastSuccessfulSyncResult &&
-        repoState.lastSuccessfulSyncResult.isRecent()
+        (repoState.lastSuccessfulSyncResult &&
+          repoState.lastSuccessfulSyncResult.isRecent()) ||
+        // chrome just restarted
+        repoState.lastSuccessfulSyncResult.syncStartUnixMillis ==
+          repoState.lastSyncResult.syncStartUnixMillis
       );
     })
     .map((r) => repoStateByFullName.get(r.fullName()));
   const syncFailureRepos = repos
     .filter((r) => {
       const repoState = repoStateByFullName.get(r.fullName());
-      const noSuccessfulRecentSync =
-        !repoState.lastSuccessfulSyncResult ||
-        !repoState.lastSuccessfulSyncResult.isRecent();
-      return noSuccessfulRecentSync && repoState.lastSyncResult.errorMsg;
+      if (syncSuccessRepos.some((v) => v.fullName === r.fullName())) {
+        return false;
+      }
+      return repoState.lastSyncResult.errorMsg;
     })
     .map((r) => repoStateByFullName.get(r.fullName()));
 
