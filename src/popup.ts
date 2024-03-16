@@ -282,13 +282,10 @@ async function populateFromState(
     "myReviewRequestedPrTable",
   ) as HTMLTableElement;
   deleteAllRows(reviewRequestedTable);
-  if (requestsForMyReviews.length == 0) {
-    reviewRequestedTable.style.display = "none";
-  }
+  reviewRequestedTable.style.display =
+    requestsForMyReviews.length == 0 ? "none" : "";
   const myPRsTable = document.getElementById("myPrTable") as HTMLTableElement;
-  if (myPRs.length == 0) {
-    myPRsTable.style.display = "none";
-  }
+  myPRsTable.style.display = myPRs.length == 0 ? "none" : "";
   deleteAllRows(myPRsTable);
 
   // Iterate over the requestsForMyReviews array and create rows for each entry
