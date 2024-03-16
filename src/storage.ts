@@ -168,16 +168,24 @@ export enum MyPRReviewStatus {
 export class ReviewerState {
   reviewerId: number;
   state: ReviewState;
+  submittedAtUnixMillis: number;
 
-  constructor(reviewerId: number, state: ReviewState) {
+  constructor(
+    reviewerId: number,
+    state: ReviewState,
+    // For ReviewState#REQUESTED leave it empty:
+    submittedAtUnixMillis = 0,
+  ) {
     this.reviewerId = reviewerId;
     this.state = state;
+    this.submittedAtUnixMillis = submittedAtUnixMillis;
   }
 }
 
 export class MyPR {
   pr: PR;
   reviewerStates: ReviewerState[];
+  notMyTurnBlockPresent: boolean;
 
   // #NOT_MATURE: lazily populated in popup.ts:
   repoFullName: string;
@@ -187,7 +195,10 @@ export class MyPR {
     reviewsReceived: ReviewOnMyPR[],
     reviewsRequested: ReviewRequestOnMyPR[],
     myUserId: number,
+    notMyTurnBlockList: NotMyTurnBlock[],
   ): MyPR {
+    // will be overriden later:
+    let lastReviewSubmittedUnixMillis = 0;
     reviewsReceived.sort(
       (a, b) => a.submittedAtUnixMillis - b.submittedAtUnixMillis,
     );
@@ -202,7 +213,18 @@ export class MyPR {
       }
       list.push(review);
       reviewerIds.add(review.reviewerId);
+      lastReviewSubmittedUnixMillis = Math.max(
+        lastReviewSubmittedUnixMillis,
+        review.submittedAtUnixMillis,
+      );
     }
+    const notMyTurnBlockPresent = notMyTurnBlockList
+      .filter((block) => block.prUrl === pr.url)
+      .some(
+        (block) =>
+          block.lastReviewSubmittedUnixMillis >= lastReviewSubmittedUnixMillis,
+      );
+
     const reviewRequestByReviewerId = new Map<number, ReviewRequestOnMyPR>();
     for (const reviewRequested of reviewsRequested) {
       reviewRequestByReviewerId.set(
@@ -245,17 +267,50 @@ export class MyPR {
             }
           }
         }, null);
-      reviewerStateBuilder.push(new ReviewerState(reviewerId, lastReviewState));
+      reviewerStateBuilder.push(
+        new ReviewerState(
+          reviewerId,
+          lastReviewState,
+          sortedReviews[sortedReviews.length - 1].submittedAtUnixMillis,
+        ),
+      );
     }
-    return new MyPR(pr, reviewerStateBuilder);
+    return new MyPR(pr, reviewerStateBuilder, notMyTurnBlockPresent);
   }
 
-  constructor(pr: PR, reviewerStates: ReviewerState[]) {
+  constructor(
+    pr: PR,
+    reviewerStates: ReviewerState[],
+    notMyTurnBlockPresent: boolean,
+  ) {
     this.pr = pr;
     this.reviewerStates = reviewerStates;
+    this.notMyTurnBlockPresent = notMyTurnBlockPresent;
+  }
+
+  getLastReviewSubmittedUnixMillis(): number {
+    return Math.max(...this.reviewerStates.map((v) => v.submittedAtUnixMillis));
+  }
+
+  isBlocking(block: NotMyTurnBlock) {
+    let lastReviewSubmittedUnixMillis = 0;
+    for (const reviewerState of this.reviewerStates) {
+      lastReviewSubmittedUnixMillis = Math.max(
+        lastReviewSubmittedUnixMillis,
+        reviewerState.submittedAtUnixMillis,
+      );
+    }
+    return (
+      this.pr.url === block.prUrl &&
+      block.lastReviewSubmittedUnixMillis >= lastReviewSubmittedUnixMillis
+    );
   }
 
   getStatus(): MyPRReviewStatus {
+    if (this.notMyTurnBlockPresent) {
+      return MyPRReviewStatus.NONE;
+    }
+
     const states = [] as ReviewState[];
     this.reviewerStates.forEach((reviewerState) => {
       states.push(reviewerState.state);
@@ -287,7 +342,11 @@ export class MyPR {
   }
 
   static of(v: MyPR): MyPR {
-    return new MyPR(v.pr, v.reviewerStates ? v.reviewerStates : []);
+    return new MyPR(
+      v.pr,
+      v.reviewerStates ? v.reviewerStates : [],
+      v.notMyTurnBlockPresent ? v.notMyTurnBlockPresent : false,
+    );
   }
 }
 
@@ -400,6 +459,10 @@ export async function storeRepoStateMap(
   repoStateByFullName.forEach((repoState: RepoState) => {
     repoStateList.push(repoState);
   });
+  return storeRepoStateList(repoStateList);
+}
+
+async function storeRepoStateList(repoStateList: RepoState[]) {
   return getBucket<RepoStateList>(REPO_STATE_LIST_STORE_KEY, "local").set(
     new RepoStateList(repoStateList),
   );
@@ -444,4 +507,78 @@ export async function storeGitHubUser(user: GitHubUser) {
 export async function getGitHubUser(): Promise<GitHubUser> {
   const store = getBucket<GitHubUser>("gitHubUser", "sync");
   return store.get();
+}
+
+// NotMyTurnBlock storage:
+
+export class NotMyTurnBlock {
+  prUrl: string;
+  lastReviewSubmittedUnixMillis: number;
+
+  constructor(prUrl: string, lastReviewSubmittedUnixMillis: number) {
+    this.prUrl = prUrl;
+    this.lastReviewSubmittedUnixMillis = lastReviewSubmittedUnixMillis;
+  }
+}
+
+class NotMyTurnBlockList {
+  notMyTurnBlockList: NotMyTurnBlock[];
+
+  constructor(notMyTurnBlockList: NotMyTurnBlock[]) {
+    this.notMyTurnBlockList = notMyTurnBlockList;
+  }
+}
+
+const NOT_MY_TURN_BLOCK_LIST = "notMyTurnBlockList";
+
+export async function addNotMyTurnBlock(block: NotMyTurnBlock) {
+  const repoStates = await getRepoStateList();
+  for (const repoState of repoStates) {
+    if (repoState.lastSyncResult.myPRs) {
+      repoState.lastSyncResult.myPRs = repoState.lastSyncResult.myPRs.map(
+        (myPR) => {
+          return myPR.isBlocking(block)
+            ? new MyPR(
+                myPR.pr,
+                myPR.reviewerStates,
+                /* notMyTurnBlockPresent = */ true,
+              )
+            : myPR;
+        },
+      );
+    }
+    if (
+      repoState.lastSuccessfulSyncResult &&
+      repoState.lastSuccessfulSyncResult.myPRs
+    ) {
+      repoState.lastSuccessfulSyncResult.myPRs =
+        repoState.lastSuccessfulSyncResult.myPRs.map((myPR) => {
+          return myPR.isBlocking(block)
+            ? new MyPR(
+                myPR.pr,
+                myPR.reviewerStates,
+                /* notMyTurnBlockPresent = */ true,
+              )
+            : myPR;
+        });
+    }
+  }
+  await storeRepoStateList(repoStates);
+
+  const notMyTurnBlockList = await getNotMyTurnBlockList();
+  notMyTurnBlockList.push(block);
+  return storeNotMyTurnBlockList(notMyTurnBlockList);
+}
+
+async function storeNotMyTurnBlockList(list: NotMyTurnBlock[]) {
+  const store = getBucket<NotMyTurnBlockList>(NOT_MY_TURN_BLOCK_LIST, "sync");
+  return store.set(new NotMyTurnBlockList(list));
+}
+
+export async function getNotMyTurnBlockList(): Promise<NotMyTurnBlock[]> {
+  return getBucket<NotMyTurnBlockList>(NOT_MY_TURN_BLOCK_LIST, "sync")
+    .get()
+    .then((l) => {
+      return l && l.notMyTurnBlockList ? l.notMyTurnBlockList : [];
+    });
 }

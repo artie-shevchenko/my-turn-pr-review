@@ -5,9 +5,11 @@ import {
 import { octokit } from "./serviceWorker";
 import {
   getMonitoringEnabledRepos,
+  getNotMyTurnBlockList,
   getRepoStateByFullName,
   MyPR,
   MyPRReviewStatus,
+  NotMyTurnBlock,
   PR,
   Repo,
   RepoState,
@@ -118,7 +120,7 @@ async function syncRepo(
   const repoSyncResult = new RepoSyncResult();
   repoSyncResult.syncStartUnixMillis = Date.now();
   const requestsForMyReviewBuilder = [] as ReviewRequest[];
-  const myPRsBuilder = [] as MyPR[];
+  const myPRsToSyncBuilder = [] as PullsListResponseDataType[0][];
 
   try {
     let pageNumber = 1;
@@ -128,8 +130,7 @@ async function syncRepo(
       for (const arrayElement of pullsListResponse.data) {
         const pr = arrayElement as PullsListResponseDataType[0];
         if (pr.user.id == gitHubUserId) {
-          const myPR = await syncMyPR(pr, repo);
-          myPRsBuilder.push(myPR);
+          myPRsToSyncBuilder.push(pr);
         } else {
           // Somebody else's PR
           for (const reviewer of pr.requested_reviewers) {
@@ -146,11 +147,19 @@ async function syncRepo(
       }
       pageNumber++;
     } while (pullsListResponse.data.length > 0);
-
     // If review request was withdrawn and then re-requested again the first request will be
     // (correctly) ignored:
     repoSyncResult.requestsForMyReview = requestsForMyReviewBuilder;
+
+    // Minimizing the chances of race conditions with the "not my turn" blocks:
+    const notMyTurnBlockList = await getNotMyTurnBlockList();
+    const myPRsBuilder = [] as MyPR[];
+    for (const pr of myPRsToSyncBuilder) {
+      const myPR = await syncMyPR(pr, repo, notMyTurnBlockList);
+      myPRsBuilder.push(myPR);
+    }
     repoSyncResult.myPRs = myPRsBuilder;
+
     repo.lastSuccessfulSyncResult = repoSyncResult;
     repo.lastSyncResult = repoSyncResult;
     return getStatus(repoSyncResult);
@@ -170,7 +179,11 @@ async function syncRepo(
   }
 }
 
-async function syncMyPR(pr: PullsListResponseDataType[0], repo: RepoState) {
+async function syncMyPR(
+  pr: PullsListResponseDataType[0],
+  repo: RepoState,
+  notMyTurnBlockList: NotMyTurnBlock[],
+) {
   const reviewsRequested = pr.requested_reviewers.map((reviewer) => {
     const url = pr.html_url;
     // To have an up-to-date title:
@@ -205,6 +218,7 @@ async function syncMyPR(pr: PullsListResponseDataType[0], repo: RepoState) {
     reviewsReceived,
     reviewsRequested,
     pr.user.id,
+    notMyTurnBlockList,
   );
 }
 

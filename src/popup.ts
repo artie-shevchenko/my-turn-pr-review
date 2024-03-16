@@ -2,11 +2,13 @@ import "../styles/popup.scss";
 import { Octokit } from "@octokit/rest";
 import { syncWithGitHub } from "./serviceWorker";
 import {
+  addNotMyTurnBlock,
   getGitHubUser,
   getMonitoringEnabledRepos,
   getRepoStateByFullName,
   GitHubUser,
   MyPRReviewStatus,
+  NotMyTurnBlock,
   Repo,
   RepoState,
   ReviewState,
@@ -242,7 +244,7 @@ async function populateFromState(
       }
     } else {
       repoListSection.innerHTML =
-        "No repos are being monitored. Click 'Settings...' to select GitHub repositories to monitor.";
+        "No repos currently monitored. Click 'Settings...' to select GitHub repositories to monitor.";
     }
   }
   if (unsyncedRepos.length > 0) {
@@ -302,8 +304,6 @@ async function populateFromState(
         (Date.now() - requestsForMyReviews[i].firstTimeObservedUnixMillis) /
           (1000 * 60 * 60),
       ) + "h";
-
-    // TODO(9): add silence review request button.
   }
 
   // Iterate over the myPRs array and create rows for each entry
@@ -315,6 +315,8 @@ async function populateFromState(
     rowIndex++;
 
     const row = myPRsTable.insertRow(rowIndex); // Insert rows starting from index 1
+    const rowId = "myPrRow" + i;
+    row.id = rowId;
 
     const repoCell = row.insertCell(0);
     repoCell.innerHTML = myPR.repoFullName;
@@ -359,6 +361,27 @@ async function populateFromState(
     if (hasReviewRequested) {
       statusCell.innerHTML += REVIEW_REQUSTED_SVG;
     }
+
+    const notMyTurnCell = row.insertCell(3);
+    notMyTurnCell.align = "center";
+    notMyTurnCell.innerHTML =
+      '<img src="icons/xMark16.png" style="cursor: pointer;" id="notMyTurn' +
+      i +
+      '" alt="Not my turn" title="Not my turn"/>';
+    document.getElementById("notMyTurn" + i).addEventListener("click", () => {
+      addNotMyTurnBlock(
+        new NotMyTurnBlock(
+          myPR.pr.url,
+          myPR.getLastReviewSubmittedUnixMillis(),
+        ),
+      );
+      deleteRow(rowId);
+    });
+  }
+
+  function deleteRow(rowId: string) {
+    const row = document.getElementById(rowId);
+    row.parentNode.removeChild(row);
   }
 
   function deleteAllRows(htmlTableElement: HTMLTableElement) {
