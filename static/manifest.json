@@ -1,7 +1,7 @@
 {
   "name": "Your Turn - PR review",
   "description": "PRs awaiting your review",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "manifest_version": 3,
   "background": {
     "service_worker": "serviceWorker.js"
