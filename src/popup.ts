@@ -371,6 +371,13 @@ async function populateFromState(
       i +
       '" alt="Not my turn" title="Not my turn"/>';
     document.getElementById("notMyTurn" + i).addEventListener("click", () => {
+      if (
+        !confirm(
+          "That would remove PR from the list until there is a new review ready. Sure it's not your turn now?",
+        )
+      ) {
+        return;
+      }
       addNotMyTurnBlock(
         new NotMyTurnBlock(
           myPR.pr.url,
