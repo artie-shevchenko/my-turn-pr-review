@@ -18,6 +18,7 @@ import {
   ReviewRequest,
   ReviewRequestOnMyPR,
   ReviewState,
+  storeNotMyTurnBlockList,
   storeRepoStateMap,
 } from "./storage";
 
@@ -153,10 +154,21 @@ async function syncRepo(
 
     // Minimizing the chances of race conditions with the "not my turn" blocks:
     const notMyTurnBlockList = await getNotMyTurnBlockList();
+    const activeBlocksBuilder = [] as NotMyTurnBlock[];
     const myPRsBuilder = [] as MyPR[];
     for (const pr of myPRsToSyncBuilder) {
       const myPR = await syncMyPR(pr, repo, notMyTurnBlockList);
       myPRsBuilder.push(myPR);
+
+      if (myPR.notMyTurnBlockPresent) {
+        notMyTurnBlockList
+          .filter((block) => myPR.isBlockedBy(block))
+          .forEach((block) => activeBlocksBuilder.push(block));
+      }
+    }
+    if (activeBlocksBuilder.length != notMyTurnBlockList.length) {
+      // Cleanup stale blocks:
+      storeNotMyTurnBlockList(activeBlocksBuilder);
     }
     repoSyncResult.myPRs = myPRsBuilder;
 

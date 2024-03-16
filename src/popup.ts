@@ -402,7 +402,7 @@ async function populateFromState(
       if (repoState.lastSyncResult.myPRs) {
         repoState.lastSyncResult.myPRs = repoState.lastSyncResult.myPRs.map(
           (myPR) => {
-            return myPR.isBlocking(block)
+            return myPR.isBlockedBy(block)
               ? new MyPR(
                   myPR.pr,
                   myPR.reviewerStates,
@@ -418,7 +418,7 @@ async function populateFromState(
       ) {
         repoState.lastSuccessfulSyncResult.myPRs =
           repoState.lastSuccessfulSyncResult.myPRs.map((myPR) => {
-            return myPR.isBlocking(block)
+            return myPR.isBlockedBy(block)
               ? new MyPR(
                   myPR.pr,
                   myPR.reviewerStates,

@@ -292,7 +292,7 @@ export class MyPR {
     return Math.max(...this.reviewerStates.map((v) => v.submittedAtUnixMillis));
   }
 
-  isBlocking(block: NotMyTurnBlock) {
+  isBlockedBy(block: NotMyTurnBlock) {
     let lastReviewSubmittedUnixMillis = 0;
     for (const reviewerState of this.reviewerStates) {
       lastReviewSubmittedUnixMillis = Math.max(
@@ -541,6 +541,11 @@ export async function storeNotMyTurnBlockList(list: NotMyTurnBlock[]) {
     );
     await store.set(chunks[i]);
   }
+  const store = getBucket<NotMyTurnBlockList>(
+    NOT_MY_TURN_BLOCK_LIST_KEY_BASE + chunks.length,
+    "sync",
+  );
+  await store.clear;
 }
 
 function splitArray(
