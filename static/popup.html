@@ -18,9 +18,9 @@
 <div id="auth" style="display:none">
   <div id="error" style="display:none"></div>
   <form id="tokenForm">
-      1. <a href="https://github.com/settings/tokens">Generate a GitHub token</a> with the following scopes: repo, read:org, read:project.<br/>
+      1. <a href="https://github.com/settings/tokens" target="_blank">Generate a GitHub token</a> with the following scopes: repo, read:org, read:project.<br/>
       2. Copy the generated token to the clipboard.<br/>
-      3. [Optional] If you see "Configure SSO" select box(es) authorize access to all the necessary organizations. You can also do this later.<br/>
+      3. [Optional] If you see the "Configure SSO" select box authorize access to all the necessary organizations. You can also do this later.<br/>
       4. Paste in the token and click submit:
     <input type="text" id="newToken" name=newToken" autocomplete="off">
     <button type="submit">Submit</button>
@@ -50,8 +50,7 @@
   <div class="theRest">
     <div id="repoWarn" class="repoWarn"></div>
     <div id="repoList"></div>
-    To change the set of repos monitored:
-    <button id="go-to-options" class="button" style="margin-top: 2rem;">Settings...</button>
+    <button id="go-to-options" class="button" style="margin-top: 10px;">Settings...</button>
   </div>
 </div>
 </div>

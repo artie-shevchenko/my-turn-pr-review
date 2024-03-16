@@ -75,6 +75,12 @@ export class RepoState {
     this.lastSuccessfulSyncResult = lastSuccessfulSyncResult;
   }
 
+  hasRecentSuccessfulSync(): boolean {
+    return (
+      this.lastSuccessfulSyncResult && this.lastSuccessfulSyncResult.isRecent()
+    );
+  }
+
   // Probably better replaced with a dto interface. See
   // https://stackoverflow.com/questions/34031448/typescript-typeerror-myclass-myfunction-is-not-a-function
   static of(repoState: RepoState): RepoState {
@@ -365,6 +371,12 @@ export async function storeReposMap(
     repos.push(repo);
   });
   return getBucket<RepoList>(REPO_STORE_KEY, "sync").set(new RepoList(repos));
+}
+
+export async function getMonitoringEnabledRepos(): Promise<Repo[]> {
+  return getRepos().then((repos) => {
+    return repos.filter((repo) => repo.monitoringEnabled);
+  });
 }
 
 export async function getRepos(): Promise<Repo[]> {

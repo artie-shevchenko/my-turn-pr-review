@@ -1,6 +1,6 @@
-import { sync } from "./github";
-import { getGitHubUser, GitHubUser } from "./storage";
 import { Octokit } from "@octokit/rest";
+import { sync, SyncStatus } from "./github";
+import { getGitHubUser, GitHubUser } from "./storage";
 
 chrome.runtime.onInstalled.addListener(async (details) => {
   if (details.reason == "install") {
@@ -55,11 +55,11 @@ export async function syncWithGitHub(gitHubUser: GitHubUser) {
     const syncResult = await sync(gitHubUser.id);
     console.log(`User PRs require attention: ${syncResult}`);
     let iconName: string;
-    if (syncResult == 2) {
+    if (syncResult == SyncStatus.Grey) {
       iconName = "grey128.png";
-    } else if (syncResult == 1) {
+    } else if (syncResult == SyncStatus.Red) {
       iconName = "red128.png";
-    } else if (syncResult == 0) {
+    } else if (syncResult == SyncStatus.Yellow) {
       iconName = "yellow128.png";
     } else {
       iconName = "green128.png";

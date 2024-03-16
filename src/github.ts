@@ -4,7 +4,7 @@ import {
 } from "@octokit/types";
 import { octokit } from "./serviceWorker";
 import {
-  getRepos,
+  getMonitoringEnabledRepos,
   getRepoStateByFullName,
   MyPR,
   MyPRReviewStatus,
@@ -39,7 +39,7 @@ let gitHubCallsCounter = 0;
 let syncStartUnixMillis = 0;
 
 // ensures we don't get throttled by GitHub
-export async function throttle() {
+async function throttle() {
   const secondsSinceLastSyncStart = (Date.now() - syncStartUnixMillis) / 1000;
   if (secondsSinceLastSyncStart < 2 * gitHubCallsCounter) {
     // to be on a safe side target 0.5 RPS (it's 5000 requests per hour quota):
@@ -51,33 +51,44 @@ export async function throttle() {
   }
 }
 
+export enum SyncStatus {
+  Green = -1,
+  Yellow = 0,
+  Red = 1,
+  Grey = 2,
+}
+
+function getStatus(repoSyncResult: RepoSyncResult) {
+  const requestForMyReviewStatus =
+    repoSyncResult.requestsForMyReview.length > 0
+      ? SyncStatus.Red
+      : SyncStatus.Green;
+  // Yellow max based on myPRs. TODO(36): make it user-configurable:
+  const myPRsStatus = repoSyncResult.myPRs.some(
+    (pr) => pr.getStatus() != MyPRReviewStatus.NONE,
+  )
+    ? SyncStatus.Yellow
+    : SyncStatus.Green;
+  return Math.max(requestForMyReviewStatus, myPRsStatus);
+}
+
 /**
- * Returns 2 for grey icon, 1 for red, 0 for yellow, -1 for green. TODO: return enum instead.
- *
- * No concurrent calls!
+ * Note: no concurrent calls!
  */
-export async function sync(gitHubUserId: number): Promise<number> {
+export async function sync(gitHubUserId: number): Promise<SyncStatus> {
   // #NOT_MATURE: what if it manages to exceed the quota in a single sync?
   await throttle();
 
   gitHubCallsCounter = 0;
   syncStartUnixMillis = Date.now();
-  const reposByFullName = await getRepos();
+  const repos = await getMonitoringEnabledRepos();
   const repoStateByFullName = await getRepoStateByFullName();
   const newRepoStateByFullName = new Map<string, RepoState>();
-  let result = -1;
+  let result = SyncStatus.Green;
   // It's probably better to do these GitHub requests in a sequential manner so that GitHub is not
   // tempted to block them even if user monitors many repos:
-  for (const repo of reposByFullName) {
+  for (const repo of repos) {
     let repoState = repoStateByFullName.get(repo.fullName());
-    if (!repo.monitoringEnabled) {
-      if (repoState) {
-        // Preserve the state just in case it gets enabled later (given the hacky way of computing
-        // review request staleness):
-        newRepoStateByFullName.set(repo.fullName(), repoState);
-      }
-      continue;
-    }
     if (!repoState) {
       repoState = new RepoState(repo.fullName());
     }
@@ -87,6 +98,14 @@ export async function sync(gitHubUserId: number): Promise<number> {
 
   // Update in background:
   storeRepoStateMap(newRepoStateByFullName);
+
+  const latestRepos = await getMonitoringEnabledRepos();
+  if (
+    latestRepos.some((repo) => !newRepoStateByFullName.get(repo.fullName()))
+  ) {
+    // Not synced for some of the latest repos snapshot.
+    result = SyncStatus.Grey;
+  }
 
   console.log(gitHubCallsCounter + " GitHub API calls in the last sync");
 
@@ -101,7 +120,7 @@ export async function sync(gitHubUserId: number): Promise<number> {
 async function syncRepo(
   repo: RepoState,
   gitHubUserId: number,
-): Promise<number> {
+): Promise<SyncStatus> {
   const repoSyncResult = new RepoSyncResult();
   repoSyncResult.syncStartUnixMillis = Date.now();
   const requestsForMyReviewBuilder = [] as ReviewRequest[];
@@ -136,15 +155,7 @@ async function syncRepo(
     repoSyncResult.myPRs = myPRsBuilder;
     repo.lastSuccessfulSyncResult = repoSyncResult;
     repo.lastSyncResult = repoSyncResult;
-    const requestForMyReviewResult =
-      repoSyncResult.requestsForMyReview.length > 0 ? 1 : -1;
-    // Yellow max based on myPRs. TODO(36): make it user-configurable:
-    const myPRsResult = repoSyncResult.myPRs.some(
-      (pr) => pr.getStatus() != MyPRReviewStatus.NONE,
-    )
-      ? 0
-      : -1;
-    return Math.max(requestForMyReviewResult, myPRsResult);
+    return getStatus(repoSyncResult);
   } catch (e) {
     console.warn(
       `Error listing pull requests from ${repo.fullName}. Ignoring it.`,
@@ -153,24 +164,15 @@ async function syncRepo(
     repoSyncResult.errorMsg = e + "";
     repo.lastSyncResult = repoSyncResult;
 
-    // Same as in populate from popup.ts:
-    // After 5 minutes of unsuccessful syncs, don't visualize the reviews requested:
-    if (
-      repo.lastSuccessfulSyncResult &&
-      repo.lastSuccessfulSyncResult.isRecent()
-    ) {
-      // Use the last successful sync results:
-      return repo.lastSuccessfulSyncResult.requestsForMyReview.length > 0
-        ? 1
-        : -1;
+    if (repo.hasRecentSuccessfulSync()) {
+      return getStatus(repo.lastSuccessfulSyncResult);
     } else {
-      // Show a grey icon:
-      return 2;
+      return SyncStatus.Grey;
     }
   }
 }
 
-export async function listPullRequests(
+async function listPullRequests(
   repo: RepoState,
   pageNumber: number,
   retryNumber = 0,
@@ -272,7 +274,7 @@ function syncRequestForMyReview(
   }
 }
 
-export async function listReviews(
+async function listReviews(
   repo: RepoState,
   pullNumber: number,
   pageNumber: number,
