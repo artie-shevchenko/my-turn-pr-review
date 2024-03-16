@@ -9,8 +9,6 @@ export class Repo {
   /* User setting from the Options page: */
   monitoringEnabled: boolean;
 
-  // TODO(4): add support for when somebody submits you a new review, mention, etc.?
-
   constructor(owner: string, name: string, monitoringEnabled = true) {
     this.owner = owner;
     this.name = name;
