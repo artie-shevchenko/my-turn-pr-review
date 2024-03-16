@@ -71,7 +71,7 @@ function getStatus(repoSyncResult: RepoSyncResult) {
 /**
  * Note: no concurrent calls!
  */
-export async function sync(gitHubUserId: number): Promise<SyncStatus> {
+export async function sync(myGitHubUserId: number): Promise<SyncStatus> {
   // #NOT_MATURE: what if it manages to exceed the quota in a single sync?
   await throttle();
 
@@ -89,7 +89,7 @@ export async function sync(gitHubUserId: number): Promise<SyncStatus> {
       repoState = new RepoState(repo.fullName());
     }
     newRepoStateByFullName.set(repo.fullName(), repoState);
-    result = Math.max(result, await syncRepo(repoState, gitHubUserId));
+    result = Math.max(result, await syncRepo(repoState, myGitHubUserId));
   }
 
   // Update in background:
@@ -115,7 +115,7 @@ export async function sync(gitHubUserId: number): Promise<SyncStatus> {
  */
 async function syncRepo(
   repo: RepoState,
-  gitHubUserId: number,
+  myGitHubUserId: number,
 ): Promise<SyncStatus> {
   const repoSyncResult = new RepoSyncResult();
   repoSyncResult.syncStartUnixMillis = Date.now();
@@ -129,16 +129,16 @@ async function syncRepo(
       pullsListResponse = await listPullRequests(repo, pageNumber);
       for (const arrayElement of pullsListResponse.data) {
         const pr = arrayElement as PullsListResponseDataType[0];
-        if (pr.user.id == gitHubUserId) {
+        if (pr.user.id == myGitHubUserId) {
           myPRsToSyncBuilder.push(pr);
         } else {
           // Somebody else's PR
           for (const reviewer of pr.requested_reviewers) {
-            if (reviewer.id === gitHubUserId) {
+            if (reviewer.id === myGitHubUserId) {
               const reviewRequest = await syncRequestForMyReview(
                 pr,
                 repo,
-                gitHubUserId,
+                myGitHubUserId,
               );
               requestsForMyReviewBuilder.push(reviewRequest);
             }
@@ -225,14 +225,14 @@ async function syncMyPR(
 async function syncRequestForMyReview(
   pr: PullsListResponseDataType[0],
   repo: RepoState,
-  gitHubUserId: number,
+  myGitHubUserId: number,
 ): Promise<ReviewRequest> {
   let reviewRequestedUnixMillis: number;
   try {
     reviewRequestedUnixMillis = await getLatestReviewRequestedEventTimestamp(
       pr,
       repo,
-      gitHubUserId,
+      myGitHubUserId,
     );
   } catch (e) {
     console.error(
@@ -274,7 +274,7 @@ async function syncRequestForMyReview(
 async function getLatestReviewRequestedEventTimestamp(
   pr: PullsListResponseDataType[0],
   repo: RepoState,
-  gitHubUserId: number,
+  myGitHubUserId: number,
 ): Promise<number> {
   let result = 0;
   let pageNumber = 1;
@@ -285,7 +285,7 @@ async function getLatestReviewRequestedEventTimestamp(
       const event = arrayElement as IssuesListEventsResponseDataType[0];
       if (
         event.event === "review_requested" &&
-        event.requested_reviewer.id === gitHubUserId
+        event.requested_reviewer.id === myGitHubUserId
       ) {
         result = Math.max(result, new Date(event.created_at).getTime());
       }

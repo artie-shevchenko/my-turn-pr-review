@@ -75,11 +75,11 @@ getGitHubUser()
   })
   .then((user) => {
     if (user && user.data && user.data.id) {
-      populate();
+      updatePopupPage();
       document.getElementById("main").style.display = "block";
 
       setInterval(function () {
-        populate();
+        updatePopupPage();
       }, 60000);
     } else {
       throw new Error(
@@ -115,7 +115,7 @@ function showError(e: Error) {
   }
 }
 
-async function populate() {
+async function updatePopupPage() {
   const repoStateByFullName = await getRepoStateByFullName();
   const repos: Repo[] = await getMonitoringEnabledRepos();
   const syncSuccessRepos = repos
@@ -376,7 +376,7 @@ async function populateFromState(
           myPR.pr.url,
           myPR.getLastReviewSubmittedUnixMillis(),
         ),
-      ).then(() => populate());
+      ).then(() => updatePopupPage());
     });
   }
 
