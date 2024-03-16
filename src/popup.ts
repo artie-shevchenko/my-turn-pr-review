@@ -102,9 +102,12 @@ function showError(e: Error) {
     if (e.message === BAD_CREDENTIALS_GITHUB_ERROR_MSG) {
       errorDiv.innerHTML =
         "Error: Bad GitHub credentials. Likely the GitHub access token expired and needs to be updated. Follow the instructions below.<br/><br/>";
+    } else if (e.message.includes("API rate limit exceeded")) {
+      errorDiv.innerHTML =
+        "Oops, we got throttled by GitHub... Sync will be retried later.<br/><br/>";
     } else {
       errorDiv.innerHTML =
-        "Something went wrong. If the error persists it may be a problem with GitHub auth token.<br/><br/>" +
+        "Something went wrong. If the error persists it may be a problem with the provided GitHub auth token.<br/><br/>" +
         e;
     }
   }
