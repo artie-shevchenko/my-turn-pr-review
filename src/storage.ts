@@ -462,7 +462,7 @@ export async function storeRepoStateMap(
   return storeRepoStateList(repoStateList);
 }
 
-async function storeRepoStateList(repoStateList: RepoState[]) {
+export async function storeRepoStateList(repoStateList: RepoState[]) {
   return getBucket<RepoStateList>(REPO_STATE_LIST_STORE_KEY, "local").set(
     new RepoStateList(repoStateList),
   );
@@ -480,7 +480,7 @@ export async function getRepoStateByFullName(): Promise<
   });
 }
 
-async function getRepoStateList(): Promise<RepoState[]> {
+export async function getRepoStateList(): Promise<RepoState[]> {
   return (
     getBucket<RepoStateList>(REPO_STATE_LIST_STORE_KEY, "local")
       .get()
@@ -531,47 +531,7 @@ class NotMyTurnBlockList {
 
 const NOT_MY_TURN_BLOCK_LIST = "notMyTurnBlockList";
 
-export async function addNotMyTurnBlock(block: NotMyTurnBlock) {
-  // To minimize chances or race conditions first store the blocks:
-  const notMyTurnBlockList = await getNotMyTurnBlockList();
-  notMyTurnBlockList.push(block);
-  await storeNotMyTurnBlockList(notMyTurnBlockList);
-  // Now manually tweak the latest repos state stored:
-  const repoStates = await getRepoStateList();
-  for (const repoState of repoStates) {
-    if (repoState.lastSyncResult.myPRs) {
-      repoState.lastSyncResult.myPRs = repoState.lastSyncResult.myPRs.map(
-        (myPR) => {
-          return myPR.isBlocking(block)
-            ? new MyPR(
-                myPR.pr,
-                myPR.reviewerStates,
-                /* notMyTurnBlockPresent = */ true,
-              )
-            : myPR;
-        },
-      );
-    }
-    if (
-      repoState.lastSuccessfulSyncResult &&
-      repoState.lastSuccessfulSyncResult.myPRs
-    ) {
-      repoState.lastSuccessfulSyncResult.myPRs =
-        repoState.lastSuccessfulSyncResult.myPRs.map((myPR) => {
-          return myPR.isBlocking(block)
-            ? new MyPR(
-                myPR.pr,
-                myPR.reviewerStates,
-                /* notMyTurnBlockPresent = */ true,
-              )
-            : myPR;
-        });
-    }
-  }
-  await storeRepoStateList(repoStates);
-}
-
-async function storeNotMyTurnBlockList(list: NotMyTurnBlock[]) {
+export async function storeNotMyTurnBlockList(list: NotMyTurnBlock[]) {
   const store = getBucket<NotMyTurnBlockList>(NOT_MY_TURN_BLOCK_LIST, "sync");
   return store.set(new NotMyTurnBlockList(list));
 }

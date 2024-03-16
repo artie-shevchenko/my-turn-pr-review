@@ -2,17 +2,21 @@ import "../styles/popup.scss";
 import { Octokit } from "@octokit/rest";
 import { syncWithGitHub } from "./serviceWorker";
 import {
-  addNotMyTurnBlock,
   getGitHubUser,
   getMonitoringEnabledRepos,
+  getNotMyTurnBlockList,
   getRepoStateByFullName,
+  getRepoStateList,
   GitHubUser,
+  MyPR,
   MyPRReviewStatus,
   NotMyTurnBlock,
   Repo,
   RepoState,
   ReviewState,
   storeGitHubUser,
+  storeNotMyTurnBlockList,
+  storeRepoStateList,
 } from "./storage";
 
 document.getElementById("go-to-options").addEventListener("click", () => {
@@ -385,6 +389,46 @@ async function populateFromState(
         ),
       ).then(() => updatePopupPage());
     });
+  }
+
+  async function addNotMyTurnBlock(block: NotMyTurnBlock) {
+    // To minimize chances or race conditions first store the blocks:
+    const notMyTurnBlockList = await getNotMyTurnBlockList();
+    notMyTurnBlockList.push(block);
+    await storeNotMyTurnBlockList(notMyTurnBlockList);
+    // Now manually tweak the latest repos state stored:
+    const repoStates = await getRepoStateList();
+    for (const repoState of repoStates) {
+      if (repoState.lastSyncResult.myPRs) {
+        repoState.lastSyncResult.myPRs = repoState.lastSyncResult.myPRs.map(
+          (myPR) => {
+            return myPR.isBlocking(block)
+              ? new MyPR(
+                  myPR.pr,
+                  myPR.reviewerStates,
+                  /* notMyTurnBlockPresent = */ true,
+                )
+              : myPR;
+          },
+        );
+      }
+      if (
+        repoState.lastSuccessfulSyncResult &&
+        repoState.lastSuccessfulSyncResult.myPRs
+      ) {
+        repoState.lastSuccessfulSyncResult.myPRs =
+          repoState.lastSuccessfulSyncResult.myPRs.map((myPR) => {
+            return myPR.isBlocking(block)
+              ? new MyPR(
+                  myPR.pr,
+                  myPR.reviewerStates,
+                  /* notMyTurnBlockPresent = */ true,
+                )
+              : myPR;
+          });
+      }
+    }
+    await storeRepoStateList(repoStates);
   }
 
   function deleteAllRows(htmlTableElement: HTMLTableElement) {
