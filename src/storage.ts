@@ -529,17 +529,57 @@ class NotMyTurnBlockList {
   }
 }
 
-const NOT_MY_TURN_BLOCK_LIST = "notMyTurnBlockList";
+const NOT_MY_TURN_BLOCK_LIST_KEY_BASE = "notMyTurnBlockList";
+const MAX_ITEM_BYTES_IN_SYNC_STORAGE = 8000 / 2; // to be on a safe side
 
 export async function storeNotMyTurnBlockList(list: NotMyTurnBlock[]) {
-  const store = getBucket<NotMyTurnBlockList>(NOT_MY_TURN_BLOCK_LIST, "sync");
-  return store.set(new NotMyTurnBlockList(list));
+  const chunks = splitArray(list, MAX_ITEM_BYTES_IN_SYNC_STORAGE);
+  for (let i = 0; i < chunks.length; i++) {
+    const store = getBucket<NotMyTurnBlockList>(
+      NOT_MY_TURN_BLOCK_LIST_KEY_BASE + i,
+      "sync",
+    );
+    await store.set(chunks[i]);
+  }
+}
+
+function splitArray(
+  blocks: NotMyTurnBlock[],
+  maxBytes: number,
+): NotMyTurnBlockList[] {
+  const resultBuilder = [] as NotMyTurnBlockList[];
+  let itemBuilder = [] as NotMyTurnBlock[];
+  for (const block of blocks) {
+    if (getBytes(itemBuilder) + getBytes([block]) > maxBytes) {
+      resultBuilder.push(new NotMyTurnBlockList(itemBuilder));
+      itemBuilder = [];
+    }
+    itemBuilder.push(block);
+  }
+  resultBuilder.push(new NotMyTurnBlockList(itemBuilder));
+  return resultBuilder;
+}
+
+function getBytes(notMyTurnBlockList: NotMyTurnBlock[]) {
+  return new Blob([JSON.stringify(notMyTurnBlockList)]).size;
 }
 
 export async function getNotMyTurnBlockList(): Promise<NotMyTurnBlock[]> {
-  return getBucket<NotMyTurnBlockList>(NOT_MY_TURN_BLOCK_LIST, "sync")
-    .get()
-    .then((l) => {
-      return l && l.notMyTurnBlockList ? l.notMyTurnBlockList : [];
-    });
+  const resultBuilder = [] as NotMyTurnBlock[];
+  let chunkIndex = 0;
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const store = getBucket<NotMyTurnBlockList>(
+      NOT_MY_TURN_BLOCK_LIST_KEY_BASE + chunkIndex,
+      "sync",
+    );
+    const list = await store.get();
+    if (list && list.notMyTurnBlockList) {
+      resultBuilder.push(...list.notMyTurnBlockList);
+    } else {
+      break;
+    }
+    chunkIndex++;
+  }
+  return resultBuilder;
 }
