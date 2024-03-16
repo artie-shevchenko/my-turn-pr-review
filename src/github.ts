@@ -38,19 +38,6 @@ type PullsListReviewsResponseDataType = GetResponseDataTypeFromEndpointMethod<
 let gitHubCallsCounter = 0;
 let syncStartUnixMillis = 0;
 
-// ensures we don't get throttled by GitHub
-async function throttle() {
-  const secondsSinceLastSyncStart = (Date.now() - syncStartUnixMillis) / 1000;
-  if (secondsSinceLastSyncStart < 2 * gitHubCallsCounter) {
-    // to be on a safe side target 0.5 RPS (it's 5000 requests per hour quota):
-    const waitMs = (2 * gitHubCallsCounter - secondsSinceLastSyncStart) * 1000;
-    console.log(
-      "Throttling GitHub calls to 0.5 RPS. Waiting for " + waitMs + "ms",
-    );
-    await delay(waitMs);
-  }
-}
-
 export enum SyncStatus {
   Green = -1,
   Yellow = 0,
@@ -172,41 +159,6 @@ async function syncRepo(
   }
 }
 
-async function listPullRequests(
-  repo: RepoState,
-  pageNumber: number,
-  retryNumber = 0,
-): Promise<PullsListResponseType> {
-  try {
-    // A little hack just to get repo owner and name:
-    const r = Repo.fromFullName(repo.fullName);
-    if (retryNumber > 0) {
-      // exponential backoff:
-      await delay(1000 * Math.pow(2, retryNumber - 1));
-    }
-    gitHubCallsCounter++;
-    return await octokit.pulls.list({
-      owner: r.owner,
-      repo: r.name,
-      state: "open",
-      per_page: PULLS_PER_PAGE,
-      page: pageNumber,
-      headers: {
-        "X-GitHub-Api-Version": "2022-11-28",
-        // no caching:
-        "If-None-Match": "",
-      },
-    });
-  } catch (e) {
-    if (retryNumber > 2) {
-      console.error("The maximum number of retries reached");
-      throw e;
-    } else {
-      return await listPullRequests(repo, pageNumber, retryNumber + 1);
-    }
-  }
-}
-
 async function syncMyPR(pr: PullsListResponseDataType[0], repo: RepoState) {
   const reviewsRequested = pr.requested_reviewers.map((reviewer) => {
     const url = pr.html_url;
@@ -274,6 +226,41 @@ function syncRequestForMyReview(
   }
 }
 
+async function listPullRequests(
+  repo: RepoState,
+  pageNumber: number,
+  retryNumber = 0,
+): Promise<PullsListResponseType> {
+  try {
+    // A little hack just to get repo owner and name:
+    const r = Repo.fromFullName(repo.fullName);
+    if (retryNumber > 0) {
+      // exponential backoff:
+      await delay(1000 * Math.pow(2, retryNumber - 1));
+    }
+    gitHubCallsCounter++;
+    return await octokit.pulls.list({
+      owner: r.owner,
+      repo: r.name,
+      state: "open",
+      per_page: PULLS_PER_PAGE,
+      page: pageNumber,
+      headers: {
+        "X-GitHub-Api-Version": "2022-11-28",
+        // no caching:
+        "If-None-Match": "",
+      },
+    });
+  } catch (e) {
+    if (retryNumber > 2) {
+      console.error("The maximum number of retries reached");
+      throw e;
+    } else {
+      return await listPullRequests(repo, pageNumber, retryNumber + 1);
+    }
+  }
+}
+
 async function listReviews(
   repo: RepoState,
   pullNumber: number,
@@ -307,6 +294,19 @@ async function listReviews(
     } else {
       return await listReviews(repo, pullNumber, pageNumber, retryNumber + 1);
     }
+  }
+}
+
+// should prevent throttling by GitHub
+async function throttle() {
+  const secondsSinceLastSyncStart = (Date.now() - syncStartUnixMillis) / 1000;
+  if (secondsSinceLastSyncStart < 2 * gitHubCallsCounter) {
+    // to be on a safe side target 0.5 RPS (it's 5000 requests per hour quota):
+    const waitMs = (2 * gitHubCallsCounter - secondsSinceLastSyncStart) * 1000;
+    console.log(
+      "Throttling GitHub calls to 0.5 RPS. Waiting for " + waitMs + "ms",
+    );
+    await delay(waitMs);
   }
 }
 
