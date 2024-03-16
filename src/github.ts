@@ -35,6 +35,13 @@ type PullsListReviewsResponseDataType = GetResponseDataTypeFromEndpointMethod<
   typeof octokit.pulls.listReviews
 >;
 
+type IssuesListEventsResponseType = GetResponseTypeFromEndpointMethod<
+  typeof octokit.issues.listEvents
+>;
+type IssuesListEventsResponseDataType = GetResponseDataTypeFromEndpointMethod<
+  typeof octokit.issues.listEvents
+>;
+
 let gitHubCallsCounter = 0;
 let syncStartUnixMillis = 0;
 
@@ -125,12 +132,16 @@ async function syncRepo(
           myPRsBuilder.push(myPR);
         } else {
           // Somebody else's PR
-          pr.requested_reviewers.forEach((reviewer) => {
+          for (const reviewer of pr.requested_reviewers) {
             if (reviewer.id === gitHubUserId) {
-              const reviewRequest = syncRequestForMyReview(pr, repo);
+              const reviewRequest = await syncRequestForMyReview(
+                pr,
+                repo,
+                gitHubUserId,
+              );
               requestsForMyReviewBuilder.push(reviewRequest);
             }
-          });
+          }
         }
       }
       pageNumber++;
@@ -197,10 +208,25 @@ async function syncMyPR(pr: PullsListResponseDataType[0], repo: RepoState) {
   );
 }
 
-function syncRequestForMyReview(
+async function syncRequestForMyReview(
   pr: PullsListResponseDataType[0],
   repo: RepoState,
-): ReviewRequest {
+  gitHubUserId: number,
+): Promise<ReviewRequest> {
+  let reviewRequestedUnixMillis: number;
+  try {
+    reviewRequestedUnixMillis = await getLatestReviewRequestedEventTimestamp(
+      pr,
+      repo,
+      gitHubUserId,
+    );
+  } catch (e) {
+    console.error(
+      "Couldn't get the real review_requested timestamp. Will use an approximation instead.",
+      e,
+    );
+  }
+
   const url = pr.html_url;
   let matchingReviewRequests = [] as ReviewRequest[];
   if (
@@ -216,14 +242,43 @@ function syncRequestForMyReview(
   // To have an up-to-date title:
   const pullRequest = new PR(url, pr.title);
   if (matchingReviewRequests.length == 0) {
-    return new ReviewRequest(pullRequest, Date.now());
+    return new ReviewRequest(
+      pullRequest,
+      reviewRequestedUnixMillis ? reviewRequestedUnixMillis : Date.now(),
+    );
   } else {
     const existingReviewRequest = matchingReviewRequests[0];
     return new ReviewRequest(
       pullRequest,
-      existingReviewRequest.firstTimeObservedUnixMillis,
+      reviewRequestedUnixMillis
+        ? reviewRequestedUnixMillis
+        : existingReviewRequest.firstTimeObservedUnixMillis,
     );
   }
+}
+
+async function getLatestReviewRequestedEventTimestamp(
+  pr: PullsListResponseDataType[0],
+  repo: RepoState,
+  gitHubUserId: number,
+): Promise<number> {
+  let result = 0;
+  let pageNumber = 1;
+  let eventsListResponse: IssuesListEventsResponseType;
+  do {
+    eventsListResponse = await listEvents(repo, pr.number, pageNumber);
+    for (const arrayElement of eventsListResponse.data) {
+      const event = arrayElement as IssuesListEventsResponseDataType[0];
+      if (
+        event.event === "review_requested" &&
+        event.requested_reviewer.id === gitHubUserId
+      ) {
+        result = Math.max(result, new Date(event.created_at).getTime());
+      }
+    }
+    pageNumber++;
+  } while (eventsListResponse.data.length > 0);
+  return result;
 }
 
 async function listPullRequests(
@@ -293,6 +348,41 @@ async function listReviews(
       throw e;
     } else {
       return await listReviews(repo, pullNumber, pageNumber, retryNumber + 1);
+    }
+  }
+}
+
+async function listEvents(
+  repo: RepoState,
+  pullNumber: number,
+  pageNumber: number,
+  retryNumber = 0,
+): Promise<IssuesListEventsResponseType> {
+  try {
+    // A little hack just to get repo owner and name:
+    const r = Repo.fromFullName(repo.fullName);
+    if (retryNumber > 0) {
+      // exponential backoff:
+      await delay(1000 * Math.pow(2, retryNumber - 1));
+    }
+    gitHubCallsCounter++;
+    return await octokit.issues.listEvents({
+      owner: r.owner,
+      repo: r.name,
+      issue_number: pullNumber,
+      page: pageNumber,
+      headers: {
+        "X-GitHub-Api-Version": "2022-11-28",
+        // no caching:
+        "If-None-Match": "",
+      },
+    });
+  } catch (e) {
+    if (retryNumber > 2) {
+      console.error("The maximum number of retries reached");
+      throw e;
+    } else {
+      return await listEvents(repo, pullNumber, pageNumber, retryNumber + 1);
     }
   }
 }

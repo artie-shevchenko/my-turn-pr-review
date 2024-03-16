@@ -242,7 +242,7 @@ async function populateFromState(
       }
     } else {
       repoListSection.innerHTML =
-        "No repos being monitored. Click 'Settings...' to add GitHub repositories.";
+        "No repos are being monitored. Click 'Settings...' to select GitHub repositories to monitor.";
     }
   }
   if (unsyncedRepos.length > 0) {

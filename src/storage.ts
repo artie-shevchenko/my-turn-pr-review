@@ -312,6 +312,8 @@ export class ReviewOnMyPR {
 
 export class ReviewRequest {
   pr: PR;
+  // normally that's exactly when the review was requested but as a fallback it may use the time
+  // when Chrome extension first observed this request:
   firstTimeObservedUnixMillis: number;
   // #NOT_MATURE: lazily populated in popup.ts:
   repoFullName: string;
