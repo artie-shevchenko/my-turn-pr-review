@@ -269,18 +269,26 @@ async function populateFromState(
       (a, b) => a.firstTimeObservedUnixMillis - b.firstTimeObservedUnixMillis,
     );
 
-  const myPRs = syncSuccessRepos.flatMap((repo) => {
-    return repo.lastSuccessfulSyncResult.myPRs.map((v) => {
-      v.repoFullName = repo.fullName;
-      return v;
-    });
-  });
+  const myPRs = syncSuccessRepos
+    .flatMap((repo) => {
+      return repo.lastSuccessfulSyncResult.myPRs.map((v) => {
+        v.repoFullName = repo.fullName;
+        return v;
+      });
+    })
+    .filter((pr) => pr.getStatus() != MyPRReviewStatus.NONE);
 
   const reviewRequestedTable = document.getElementById(
-    "prTable",
+    "myReviewRequestedPrTable",
   ) as HTMLTableElement;
   deleteAllRows(reviewRequestedTable);
+  if (requestsForMyReviews.length == 0) {
+    reviewRequestedTable.style.display = "none";
+  }
   const myPRsTable = document.getElementById("myPrTable") as HTMLTableElement;
+  if (myPRs.length == 0) {
+    myPRsTable.style.display = "none";
+  }
   deleteAllRows(myPRsTable);
 
   // Iterate over the requestsForMyReviews array and create rows for each entry
@@ -309,12 +317,8 @@ async function populateFromState(
   // Iterate over the myPRs array and create rows for each entry
   for (let i = 0, rowIndex = 0; i < myPRs.length; i++) {
     const myPR = myPRs[i];
-    if (myPR.getStatus() === MyPRReviewStatus.NONE) {
-      continue;
-    }
-    rowIndex++;
 
-    const row = myPRsTable.insertRow(rowIndex); // Insert rows starting from index 1
+    const row = myPRsTable.insertRow(rowIndex + 1); // Insert rows starting from index 1
     const rowId = "myPrRow" + i;
     row.id = rowId;
 
@@ -348,6 +352,7 @@ async function populateFromState(
     });
 
     statusCell.innerHTML = "";
+    statusCell.align = "center";
 
     if (hasApproved) {
       statusCell.innerHTML += APPROVED_SVG;
@@ -374,14 +379,8 @@ async function populateFromState(
           myPR.pr.url,
           myPR.getLastReviewSubmittedUnixMillis(),
         ),
-      );
-      deleteRow(rowId);
+      ).then(() => populate());
     });
-  }
-
-  function deleteRow(rowId: string) {
-    const row = document.getElementById(rowId);
-    row.parentNode.removeChild(row);
   }
 
   function deleteAllRows(htmlTableElement: HTMLTableElement) {

@@ -532,6 +532,11 @@ class NotMyTurnBlockList {
 const NOT_MY_TURN_BLOCK_LIST = "notMyTurnBlockList";
 
 export async function addNotMyTurnBlock(block: NotMyTurnBlock) {
+  // To minimize chances or race conditions first store the blocks:
+  const notMyTurnBlockList = await getNotMyTurnBlockList();
+  notMyTurnBlockList.push(block);
+  await storeNotMyTurnBlockList(notMyTurnBlockList);
+  // Now manually tweak the latest repos state stored:
   const repoStates = await getRepoStateList();
   for (const repoState of repoStates) {
     if (repoState.lastSyncResult.myPRs) {
@@ -564,10 +569,6 @@ export async function addNotMyTurnBlock(block: NotMyTurnBlock) {
     }
   }
   await storeRepoStateList(repoStates);
-
-  const notMyTurnBlockList = await getNotMyTurnBlockList();
-  notMyTurnBlockList.push(block);
-  return storeNotMyTurnBlockList(notMyTurnBlockList);
 }
 
 async function storeNotMyTurnBlockList(list: NotMyTurnBlock[]) {
