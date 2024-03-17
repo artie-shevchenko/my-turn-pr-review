@@ -9,7 +9,7 @@
 </head>
 
 <body>
-<div style="padding: 5px">
+<div style="padding: 10px">
   <div id="setup" style="display:none">
     <h2>1. Pin this extension in Chrome toolbar</h2>
     <img src="pin-instructions.png" style="border: 1px solid #555; width: 300px;" alt="Open the Extensions Menu by clicking the puzzle piece icon next to your profile avatar. Then press the Pushpin icon">
@@ -29,7 +29,7 @@
   </form>
 </div>
 <div id="main" class="container" style="display:none">
-  <h2>Outcoming reviews</h2>
+  <h2><img src="icons/red128.png" style="width: 16px;" alt=""> Outcoming reviews</h2>
   <table id="myReviewRequestedPrTable">
     <tr class="prTableHeader">
       <td class="repoColumn">Repo</td>
@@ -37,16 +37,17 @@
       <td>Hours you've ignored it for</td>
     </tr>
   </table>
-  <h2>Incoming reviews</h2>
+  <h2><img src="icons/yellow128.png" style="width: 16px;" alt=""> Incoming reviews</h2>
   <table id="myPrTable">
     <tr class="prTableHeader">
       <td class="repoColumn">Repo</td>
       <td class="myPrTitleColumn">Pull Request</td>
-      <td>State</td>
+      <td>Status</td>
       <td></td>
     </tr>
   </table>
-
+  <br/>
+  <hr>
   <div>
     <div id="repoWarn" class="repoWarn"></div>
     <div id="repoList"></div>

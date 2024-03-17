@@ -1,5 +1,5 @@
 body {
-  background-color: #fffedd;
+  background-color: #fffff0;
   margin: 0;
 }
 .container {
@@ -12,7 +12,7 @@ body {
 table, th, td {
   border-style: solid;
   border-width: 1px;
-  border-color: lightgray;
+  border-color: #ababab;
 }
 
 table {
@@ -25,6 +25,7 @@ td {
 }
 .prTableHeader {
   font-weight: bold;
+  background-color: #fbf8d7;
 }
 .repoWarn {
   font-weight: bold;
