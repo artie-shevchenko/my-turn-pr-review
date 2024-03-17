@@ -6,6 +6,7 @@ import { octokit } from "./serviceWorker";
 import {
   getMonitoringEnabledRepos,
   getNotMyTurnBlockList,
+  getRepos,
   getRepoStateByFullName,
   MyPR,
   MyPRReviewStatus,
@@ -73,12 +74,15 @@ function getStatus(repoSyncResult: RepoSyncResult) {
  * Note: no concurrent calls!
  */
 export async function sync(myGitHubUserId: number): Promise<SyncStatus> {
+  const blocksAtSyncStart = await getNotMyTurnBlockList();
+
   // #NOT_MATURE: what if it manages to exceed the quota in a single sync?
   await throttle();
 
   gitHubCallsCounter = 0;
   syncStartUnixMillis = Date.now();
-  const repos = await getMonitoringEnabledRepos();
+  const allReposIncludingDisabled = await getRepos();
+  const repos = allReposIncludingDisabled.filter((v) => v.monitoringEnabled);
   const repoStateByFullName = await getRepoStateByFullName();
   const newRepoStateByFullName = new Map<string, RepoState>();
   let result = SyncStatus.Green;
@@ -96,6 +100,19 @@ export async function sync(myGitHubUserId: number): Promise<SyncStatus> {
   // Update in background:
   storeRepoStateMap(newRepoStateByFullName);
 
+  const blocksNow = await getNotMyTurnBlockList();
+  if (blocksNow.length == blocksAtSyncStart.length) {
+    const monitoringDisabledRepos = allReposIncludingDisabled.filter(
+      (v) => !v.monitoringEnabled,
+    );
+    maybeCleanUpObsoleteBlocks(
+      repoStateByFullName,
+      blocksNow,
+      monitoringDisabledRepos,
+    );
+  }
+
+  // TODO: similar to this result may be returning status for a repo that's no longer monitored.
   const latestRepos = await getMonitoringEnabledRepos();
   if (
     latestRepos.some((repo) => !newRepoStateByFullName.get(repo.fullName()))
@@ -107,6 +124,44 @@ export async function sync(myGitHubUserId: number): Promise<SyncStatus> {
   console.log(gitHubCallsCounter + " GitHub API calls in the last sync");
 
   return result;
+}
+
+async function maybeCleanUpObsoleteBlocks(
+  repoStateByFullName: Map<string, RepoState>,
+  notMyTurnBlocksFromStorage: NotMyTurnBlock[],
+  monitoringDisabledRepos: Repo[],
+) {
+  if (Math.random() > 0.01) {
+    return;
+  }
+
+  const repoStates = [...repoStateByFullName.values()];
+  if (repoStates.some((r) => r.lastSyncResult.errorMsg)) {
+    return;
+  }
+
+  const activeBlocksBuilder = new Set<NotMyTurnBlock>();
+  for (const repoState of repoStates) {
+    for (const myPR of repoState.lastSyncResult.myPRs) {
+      if (myPR.notMyTurnBlockPresent) {
+        notMyTurnBlocksFromStorage
+          .filter((block) => myPR.isBlockedBy(block))
+          .forEach((block) => activeBlocksBuilder.add(block));
+      }
+    }
+  }
+
+  // Preserve blocks in case monitoring for a repo is temporary disabled and then re-enabled:
+  for (const repo of monitoringDisabledRepos) {
+    notMyTurnBlocksFromStorage
+      // #NOT_MATURE: yes there's a low chance of false positives but that's okay:
+      .filter((v) => v.prUrl.includes(repo.fullName()))
+      .forEach((v) => activeBlocksBuilder.add(v));
+  }
+
+  if (notMyTurnBlocksFromStorage.length != activeBlocksBuilder.size) {
+    return storeNotMyTurnBlockList([...activeBlocksBuilder]);
+  }
 }
 
 /**
@@ -154,21 +209,10 @@ async function syncRepo(
 
     // Minimizing the chances of race conditions with the "not my turn" blocks:
     const notMyTurnBlockList = await getNotMyTurnBlockList();
-    const activeBlocksBuilder = [] as NotMyTurnBlock[];
     const myPRsBuilder = [] as MyPR[];
     for (const pr of myPRsToSyncBuilder) {
       const myPR = await syncMyPR(pr, repo, notMyTurnBlockList);
       myPRsBuilder.push(myPR);
-
-      if (myPR.notMyTurnBlockPresent) {
-        notMyTurnBlockList
-          .filter((block) => myPR.isBlockedBy(block))
-          .forEach((block) => activeBlocksBuilder.push(block));
-      }
-    }
-    if (activeBlocksBuilder.length != notMyTurnBlockList.length) {
-      // Cleanup stale blocks:
-      storeNotMyTurnBlockList(activeBlocksBuilder);
     }
     repoSyncResult.myPRs = myPRsBuilder;
 

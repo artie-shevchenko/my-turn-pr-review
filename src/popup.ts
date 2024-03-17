@@ -254,7 +254,7 @@ async function populateFromState(
   if (unsyncedRepos.length > 0) {
     repoListSection.innerHTML =
       repoListSection.innerHTML +
-      "<br/>First sync is in progress for repos: " +
+      "<br/>Initial sync is in progress for repos: " +
       unsyncedRepos
         .map((repo) => repo.fullName())
         .sort()
