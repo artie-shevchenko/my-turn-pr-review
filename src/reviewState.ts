@@ -1,4 +1,4 @@
-// #NOT_MATURE: reused both for reviews and review requests.
+// #NOT_MATURE: reused both for myPR and reviewRequest.
 export enum ReviewState {
   REQUESTED,
   COMMENTED,

@@ -1,9 +1,6 @@
-import { MyPRReviewStatus } from "./myPRReviewStatus";
-import { ReviewRequestOnMyPR } from "./reviewRequestOnMyPR";
-import { ReviewState } from "./reviewState";
 import { NotMyTurnBlock } from "./notMyTurnBlock";
 import { PR } from "./PR";
-import { ReviewOnMyPR } from "./reviewOnMyPR";
+import { ReviewState } from "./reviewState";
 
 export class MyPR {
   pr: PR;
@@ -170,5 +167,48 @@ class ReviewerState {
     this.reviewerId = reviewerId;
     this.state = state;
     this.submittedAtUnixMillis = submittedAtUnixMillis;
+  }
+}
+
+// APPROVED or APPROVED_AND_COMMENTED possible only if reviewsRequested is empty.
+export enum MyPRReviewStatus {
+  // NONE stands for "Ball is still on the other side" (ignore this PR):
+  NONE,
+  CHANGES_REQUESTED,
+  APPROVED,
+  APPROVED_AND_COMMENTED,
+  COMMENTED,
+}
+
+export class ReviewOnMyPR {
+  pr: PR;
+  reviewerId: number;
+  state: ReviewState;
+  submittedAtUnixMillis: number;
+
+  constructor(
+    pr: PR,
+    reviewerId: number,
+    state: ReviewState,
+    submittedAtUnixMillis: number,
+  ) {
+    this.pr = pr;
+    this.reviewerId = reviewerId;
+    this.state = state;
+    this.submittedAtUnixMillis = submittedAtUnixMillis;
+  }
+}
+
+export class ReviewRequestOnMyPR {
+  pr: PR;
+  reviewerId: number;
+
+  constructor(pr: PR, reviewerId: number) {
+    this.pr = pr;
+    this.reviewerId = reviewerId;
+  }
+
+  static of(v: ReviewRequestOnMyPR): ReviewRequestOnMyPR {
+    return new ReviewRequestOnMyPR(v.pr, v.reviewerId);
   }
 }

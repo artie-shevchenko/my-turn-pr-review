@@ -2,7 +2,6 @@ import {
   GetResponseDataTypeFromEndpointMethod,
   GetResponseTypeFromEndpointMethod,
 } from "@octokit/types";
-import { ReviewRequestOnMyPR } from "./reviewRequestOnMyPR";
 import { ReviewState } from "./reviewState";
 import { NotMyTurnBlock } from "./notMyTurnBlock";
 import { PR } from "./PR";
@@ -10,8 +9,7 @@ import { ReviewRequest } from "./reviewRequest";
 import { RepoSyncResult } from "./repoSyncResult";
 import { RepoState } from "./repoState";
 import { Repo } from "./repo";
-import { ReviewOnMyPR } from "./reviewOnMyPR";
-import { MyPR } from "./myPR";
+import { MyPR, ReviewOnMyPR, ReviewRequestOnMyPR } from "./myPR";
 import { octokit } from "./serviceWorker";
 import {
   getMonitoringEnabledRepos,

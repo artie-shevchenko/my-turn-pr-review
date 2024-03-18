@@ -1,4 +1,4 @@
-import { MyPRReviewStatus } from "./myPRReviewStatus";
+import { MyPRReviewStatus } from "./myPR";
 import { NotMyTurnBlock } from "./notMyTurnBlock";
 import { RepoSyncResult } from "./repoSyncResult";
 import { SyncStatus } from "./github";

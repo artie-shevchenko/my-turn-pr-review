@@ -1,6 +1,6 @@
 import "../styles/popup.scss";
 import { Octokit } from "@octokit/rest";
-import { MyPRReviewStatus } from "./myPRReviewStatus";
+import { MyPRReviewStatus } from "./myPR";
 import { ReviewState } from "./reviewState";
 import { GitHubUser } from "./gitHubUser";
 import { NotMyTurnBlock } from "./notMyTurnBlock";
