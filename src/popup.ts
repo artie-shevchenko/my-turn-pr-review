@@ -1,5 +1,11 @@
 import "../styles/popup.scss";
 import { Octokit } from "@octokit/rest";
+import { MyPRReviewStatus } from "./myPRReviewStatus";
+import { ReviewState } from "./reviewState";
+import { GitHubUser } from "./gitHubUser";
+import { NotMyTurnBlock } from "./notMyTurnBlock";
+import { RepoState } from "./repoState";
+import { Repo } from "./repo";
 import { syncWithGitHub } from "./serviceWorker";
 import {
   addNotMyTurnBlock,
@@ -7,12 +13,6 @@ import {
   getMonitoringEnabledRepos,
   getNotMyTurnBlockList,
   getReposState,
-  GitHubUser,
-  MyPRReviewStatus,
-  NotMyTurnBlock,
-  Repo,
-  RepoState,
-  ReviewState,
   storeGitHubUser,
 } from "./storage";
 
@@ -327,8 +327,7 @@ async function populateFromState(
     const myPR = myPRs[i];
 
     const row = myPRsTable.insertRow(rowIndex + 1); // Insert rows starting from index 1
-    const rowId = "myPrRow" + i;
-    row.id = rowId;
+    row.id = "myPrRow" + i;
 
     const repoCell = row.insertCell(0);
     repoCell.innerHTML = myPR.repoFullName;

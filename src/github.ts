@@ -2,22 +2,22 @@ import {
   GetResponseDataTypeFromEndpointMethod,
   GetResponseTypeFromEndpointMethod,
 } from "@octokit/types";
+import { ReviewRequestOnMyPR } from "./reviewRequestOnMyPR";
+import { ReviewState } from "./reviewState";
+import { NotMyTurnBlock } from "./notMyTurnBlock";
+import { PR } from "./PR";
+import { ReviewRequest } from "./reviewRequest";
+import { RepoSyncResult } from "./repoSyncResult";
+import { RepoState } from "./repoState";
+import { Repo } from "./repo";
+import { ReviewOnMyPR } from "./reviewOnMyPR";
+import { MyPR } from "./myPR";
 import { octokit } from "./serviceWorker";
 import {
   getMonitoringEnabledRepos,
   getNotMyTurnBlockList,
   getRepos,
   getRepoStateByFullName,
-  MyPR,
-  NotMyTurnBlock,
-  PR,
-  Repo,
-  RepoState,
-  RepoSyncResult,
-  ReviewOnMyPR,
-  ReviewRequest,
-  ReviewRequestOnMyPR,
-  ReviewState,
   storeNotMyTurnBlockList,
   storeRepoStateMap,
 } from "./storage";

@@ -1,12 +1,12 @@
 import "../styles/options.scss";
+import { RepoState } from "./repoState";
+import { Repo } from "./repo";
 import { SyncStatus } from "./github";
 import { syncWithGitHub } from "./serviceWorker";
 import {
   getGitHubUser,
   getRepos,
   getReposState,
-  Repo,
-  RepoState,
   storeGitHubUser,
   storeNotMyTurnBlockList,
   storeReposMap,

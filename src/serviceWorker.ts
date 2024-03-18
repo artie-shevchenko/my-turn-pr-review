@@ -1,6 +1,7 @@
 import { Octokit } from "@octokit/rest";
+import { GitHubUser } from "./gitHubUser";
 import { sync } from "./github";
-import { getGitHubUser, GitHubUser } from "./storage";
+import { getGitHubUser } from "./storage";
 
 chrome.runtime.onInstalled.addListener(async (details) => {
   if (details.reason == "install") {
