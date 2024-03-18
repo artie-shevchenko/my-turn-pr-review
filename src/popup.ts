@@ -304,6 +304,7 @@ async function populateFromState(
 
     const repoCell = row.insertCell(0);
     repoCell.innerHTML = requestsForMyReviews[i].repoFullName;
+    repoCell.className = "repoColumn";
 
     const prCell = row.insertCell(1);
     prCell.innerHTML =
@@ -331,6 +332,7 @@ async function populateFromState(
 
     const repoCell = row.insertCell(0);
     repoCell.innerHTML = myPR.repoFullName;
+    repoCell.className = "repoColumn";
 
     const prCell = row.insertCell(1);
     prCell.innerHTML =
