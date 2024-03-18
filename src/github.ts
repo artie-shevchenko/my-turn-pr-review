@@ -9,7 +9,6 @@ import {
   getRepos,
   getRepoStateByFullName,
   MyPR,
-  MyPRReviewStatus,
   NotMyTurnBlock,
   PR,
   Repo,
@@ -56,24 +55,58 @@ export enum SyncStatus {
   Grey = 2,
 }
 
-function getStatus(repoSyncResult: RepoSyncResult) {
-  const requestForMyReviewStatus =
-    repoSyncResult.requestsForMyReview.length > 0
-      ? SyncStatus.Red
-      : SyncStatus.Green;
-  // Yellow max based on myPRs. TODO(36): make it user-configurable:
-  const myPRsStatus = repoSyncResult.myPRs.some(
-    (pr) => pr.getStatus() != MyPRReviewStatus.NONE,
-  )
-    ? SyncStatus.Yellow
-    : SyncStatus.Green;
-  return Math.max(requestForMyReviewStatus, myPRsStatus);
+export class ReposState {
+  repoStateByFullName: Map<string, RepoState>;
+
+  constructor(repoStateByFullName: Map<string, RepoState>) {
+    this.repoStateByFullName = repoStateByFullName;
+  }
+
+  async updateIcon(
+    monitoringEnabledRepos: Repo[] = undefined,
+    notMyTurnBlocks: NotMyTurnBlock[] = undefined,
+  ) {
+    if (!monitoringEnabledRepos) {
+      monitoringEnabledRepos = await getMonitoringEnabledRepos();
+    }
+    if (!notMyTurnBlocks) {
+      notMyTurnBlocks = await getNotMyTurnBlockList();
+    }
+    let syncStatus = SyncStatus.Green;
+    for (const repo of monitoringEnabledRepos) {
+      const repoState = this.repoStateByFullName.get(repo.fullName());
+      if (!repoState || !repoState.hasRecentSuccessfulSync()) {
+        syncStatus = SyncStatus.Grey;
+        break;
+      }
+      syncStatus = Math.max(syncStatus, repoState.getStatus(notMyTurnBlocks));
+    }
+
+    let iconName: string;
+    if (syncStatus == SyncStatus.Grey) {
+      iconName = "grey128.png";
+    } else if (syncStatus == SyncStatus.Red) {
+      iconName = "red128.png";
+    } else if (syncStatus == SyncStatus.Yellow) {
+      iconName = "yellow128.png";
+    } else {
+      iconName = "green128.png";
+    }
+    chrome.action.setIcon({
+      path: "icons/" + iconName,
+    });
+    return syncStatus;
+  }
+
+  asArray() {
+    return [...this.repoStateByFullName.values()];
+  }
 }
 
 /**
  * Note: no concurrent calls!
  */
-export async function sync(myGitHubUserId: number): Promise<SyncStatus> {
+export async function sync(myGitHubUserId: number) {
   const blocksAtSyncStart = await getNotMyTurnBlockList();
 
   // #NOT_MATURE: what if it manages to exceed the quota in a single sync?
@@ -83,51 +116,45 @@ export async function sync(myGitHubUserId: number): Promise<SyncStatus> {
   syncStartUnixMillis = Date.now();
   const allReposIncludingDisabled = await getRepos();
   const repos = allReposIncludingDisabled.filter((v) => v.monitoringEnabled);
-  const repoStateByFullName = await getRepoStateByFullName();
-  const newRepoStateByFullName = new Map<string, RepoState>();
-  let result = SyncStatus.Green;
+  const prevRepoStateByFullName = await getRepoStateByFullName();
+  const repoStateByFullNameBuilder = new Map<string, RepoState>();
   // It's probably better to do these GitHub requests in a sequential manner so that GitHub is not
   // tempted to block them even if user monitors many repos:
   for (const repo of repos) {
-    let repoState = repoStateByFullName.get(repo.fullName());
+    let repoState = prevRepoStateByFullName.get(repo.fullName());
     if (!repoState) {
       repoState = new RepoState(repo.fullName());
     }
-    newRepoStateByFullName.set(repo.fullName(), repoState);
-    result = Math.max(result, await syncRepo(repoState, myGitHubUserId));
+    repoStateByFullNameBuilder.set(repo.fullName(), repoState);
+    await syncRepo(repoState, myGitHubUserId);
   }
+  const reposState = new ReposState(repoStateByFullNameBuilder);
 
   // Update in background:
-  storeRepoStateMap(newRepoStateByFullName);
+  storeRepoStateMap(repoStateByFullNameBuilder);
 
   const blocksNow = await getNotMyTurnBlockList();
   if (blocksNow.length == blocksAtSyncStart.length) {
     const monitoringDisabledRepos = allReposIncludingDisabled.filter(
       (v) => !v.monitoringEnabled,
     );
+    // In background:
     maybeCleanUpObsoleteBlocks(
-      repoStateByFullName,
+      reposState.asArray(),
       blocksNow,
       monitoringDisabledRepos,
     );
   }
 
-  // TODO: similar to this result may be returning status for a repo that's no longer monitored.
-  const latestRepos = await getMonitoringEnabledRepos();
-  if (
-    latestRepos.some((repo) => !newRepoStateByFullName.get(repo.fullName()))
-  ) {
-    // Not synced for some of the latest repos snapshot.
-    result = SyncStatus.Grey;
-  }
-
   console.log(gitHubCallsCounter + " GitHub API calls in the last sync");
 
-  return result;
+  await reposState.updateIcon();
+
+  console.info("Sync finished.");
 }
 
 async function maybeCleanUpObsoleteBlocks(
-  repoStateByFullName: Map<string, RepoState>,
+  repoStates: RepoState[],
   notMyTurnBlocksFromStorage: NotMyTurnBlock[],
   monitoringDisabledRepos: Repo[],
 ) {
@@ -135,7 +162,6 @@ async function maybeCleanUpObsoleteBlocks(
     return;
   }
 
-  const repoStates = [...repoStateByFullName.values()];
   if (repoStates.some((r) => r.lastSyncResult.errorMsg)) {
     return;
   }
@@ -143,11 +169,9 @@ async function maybeCleanUpObsoleteBlocks(
   const activeBlocksBuilder = new Set<NotMyTurnBlock>();
   for (const repoState of repoStates) {
     for (const myPR of repoState.lastSyncResult.myPRs) {
-      if (myPR.notMyTurnBlockPresent) {
-        notMyTurnBlocksFromStorage
-          .filter((block) => myPR.isBlockedBy(block))
-          .forEach((block) => activeBlocksBuilder.add(block));
-      }
+      notMyTurnBlocksFromStorage
+        .filter((block) => myPR.isBlockedBy(block))
+        .forEach((block) => activeBlocksBuilder.add(block));
     }
   }
 
@@ -169,10 +193,7 @@ async function maybeCleanUpObsoleteBlocks(
  *
  * @param repo The repo state will be updated as a result of the call.
  */
-async function syncRepo(
-  repo: RepoState,
-  myGitHubUserId: number,
-): Promise<SyncStatus> {
+async function syncRepo(repo: RepoState, myGitHubUserId: number) {
   const repoSyncResult = new RepoSyncResult();
   repoSyncResult.syncStartUnixMillis = Date.now();
   const requestsForMyReviewBuilder = [] as ReviewRequest[];
@@ -207,18 +228,15 @@ async function syncRepo(
     // (correctly) ignored:
     repoSyncResult.requestsForMyReview = requestsForMyReviewBuilder;
 
-    // Minimizing the chances of race conditions with the "not my turn" blocks:
-    const notMyTurnBlockList = await getNotMyTurnBlockList();
     const myPRsBuilder = [] as MyPR[];
     for (const pr of myPRsToSyncBuilder) {
-      const myPR = await syncMyPR(pr, repo, notMyTurnBlockList);
+      const myPR = await syncMyPR(pr, repo);
       myPRsBuilder.push(myPR);
     }
     repoSyncResult.myPRs = myPRsBuilder;
 
     repo.lastSuccessfulSyncResult = repoSyncResult;
     repo.lastSyncResult = repoSyncResult;
-    return getStatus(repoSyncResult);
   } catch (e) {
     console.warn(
       `Error listing pull requests from ${repo.fullName}. Ignoring it.`,
@@ -226,20 +244,10 @@ async function syncRepo(
     );
     repoSyncResult.errorMsg = e + "";
     repo.lastSyncResult = repoSyncResult;
-
-    if (repo.hasRecentSuccessfulSync()) {
-      return getStatus(repo.lastSuccessfulSyncResult);
-    } else {
-      return SyncStatus.Grey;
-    }
   }
 }
 
-async function syncMyPR(
-  pr: PullsListResponseDataType[0],
-  repo: RepoState,
-  notMyTurnBlockList: NotMyTurnBlock[],
-) {
+async function syncMyPR(pr: PullsListResponseDataType[0], repo: RepoState) {
   const reviewsRequested = pr.requested_reviewers.map((reviewer) => {
     const url = pr.html_url;
     // To have an up-to-date title:
@@ -274,7 +282,6 @@ async function syncMyPR(
     reviewsReceived,
     reviewsRequested,
     pr.user.id,
-    notMyTurnBlockList,
   );
 }
 

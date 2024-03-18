@@ -1,11 +1,14 @@
 import "../styles/options.scss";
+import { SyncStatus } from "./github";
 import { syncWithGitHub } from "./serviceWorker";
 import {
   getGitHubUser,
   getRepos,
+  getReposState,
   Repo,
   RepoState,
   storeGitHubUser,
+  storeNotMyTurnBlockList,
   storeReposMap,
   storeRepoStateMap,
 } from "./storage";
@@ -88,16 +91,33 @@ form.addEventListener("submit", (e) => {
   }
 });
 
-document.getElementById("deleteToken").addEventListener("click", function () {
-  storeGitHubUser(null)
-    .then(() => storeReposMap(new Map<string, Repo>()))
-    .then(() => storeRepoStateMap(new Map<string, RepoState>()))
-    .then(
-      () =>
-        (document.getElementById("main").innerHTML =
-          "<h1>Click on the extension icon in the toolbar to enter a new token.</h1>"),
-    );
-});
+document
+  .getElementById("factoryResetButton")
+  .addEventListener("click", function () {
+    if (
+      !confirm(
+        "This will clear all the 'My Turn' extension's data. Are you sure you want to proceed?",
+      )
+    ) {
+      return;
+    }
+
+    // #NOT_MATURE: use Promise.all instead:
+    storeGitHubUser(null)
+      .then(() => storeReposMap(new Map<string, Repo>()))
+      .then(() => storeRepoStateMap(new Map<string, RepoState>()))
+      .then(() => storeNotMyTurnBlockList([]))
+      .then(() => {
+        chrome.action.setIcon({
+          path: "icons/grey128.png",
+        });
+      })
+      .then(
+        () =>
+          (document.getElementById("main").innerHTML =
+            "<h1>Click on the extension icon in the toolbar to enter a new token.</h1>"),
+      );
+  });
 
 let updatingRepos = false;
 
@@ -119,14 +139,14 @@ async function updateReposToWatchFromCheckboxes() {
       Repo.fromFullName(checkBox.id, checkBox.checked),
     );
   });
-  storeReposMap(reposByFullName).then(() => {
-    console.log("Updated repos to watch:", checkBoxes);
-    updatingRepos = false;
+  await storeReposMap(reposByFullName);
+  console.log("Updated repos to watch:", checkBoxes);
+  updatingRepos = false;
 
-    console.log("Triggering sync as repo set may have changed.");
-    chrome.action.setIcon({
-      path: "icons/grey128.png",
-    });
+  const reposState = await getReposState();
+  const syncStatus = await reposState.updateIcon();
+  if (syncStatus === SyncStatus.Grey) {
+    console.log("Triggering sync as there are new repos added.");
     getGitHubUser()
       .then((gitHubUser) => {
         syncWithGitHub(gitHubUser);
@@ -134,5 +154,5 @@ async function updateReposToWatchFromCheckboxes() {
       .catch((e) => {
         console.error("Sync failed", e);
       });
-  });
+  }
 }

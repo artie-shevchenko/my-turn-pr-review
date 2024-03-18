@@ -1,4 +1,5 @@
 import { getBucket } from "@extend-chrome/storage";
+import { ReposState, SyncStatus } from "./github";
 
 const REPO_STORE_KEY = "reposStore";
 const REPO_STATE_LIST_STORE_KEY = "repoStateListStore";
@@ -15,8 +16,7 @@ export class Repo {
     this.monitoringEnabled = monitoringEnabled;
   }
 
-  // TODO This should be replaces with dto interface
-  // NOTE:
+  // #NOT_MATURE: maybe this should be replaced with a dto interface:
   // https://stackoverflow.com/questions/34031448/typescript-typeerror-myclass-myfunction-is-not-a-function
   static of(repo: Repo): Repo {
     return new Repo(repo.owner, repo.name, repo.monitoringEnabled);
@@ -71,6 +71,24 @@ export class RepoState {
     this.fullName = repoFullName;
     this.lastSyncResult = lastSyncResult;
     this.lastSuccessfulSyncResult = lastSuccessfulSyncResult;
+  }
+
+  getStatus(notMyTurnBlocks: NotMyTurnBlock[]): SyncStatus {
+    if (!this.hasRecentSuccessfulSync()) {
+      return SyncStatus.Grey;
+    }
+
+    const requestsForMyReviewStatus =
+      this.lastSuccessfulSyncResult.requestsForMyReview.length > 0
+        ? SyncStatus.Red
+        : SyncStatus.Green;
+    // Yellow max based on myPRs. TODO(36): make it user-configurable:
+    const myPRsStatus = this.lastSuccessfulSyncResult.myPRs.some(
+      (pr) => pr.getStatus(notMyTurnBlocks) != MyPRReviewStatus.NONE,
+    )
+      ? SyncStatus.Yellow
+      : SyncStatus.Green;
+    return Math.max(requestsForMyReviewStatus, myPRsStatus);
   }
 
   hasRecentSuccessfulSync(): boolean {
@@ -183,7 +201,6 @@ export class ReviewerState {
 export class MyPR {
   pr: PR;
   reviewerStates: ReviewerState[];
-  notMyTurnBlockPresent: boolean;
 
   // #NOT_MATURE: lazily populated in popup.ts:
   repoFullName: string;
@@ -193,7 +210,6 @@ export class MyPR {
     reviewsReceived: ReviewOnMyPR[],
     reviewsRequested: ReviewRequestOnMyPR[],
     myUserId: number,
-    notMyTurnBlockList: NotMyTurnBlock[],
   ): MyPR {
     // will be overriden later:
     let lastReviewSubmittedUnixMillis = 0;
@@ -216,12 +232,6 @@ export class MyPR {
         review.submittedAtUnixMillis,
       );
     }
-    const notMyTurnBlockPresent = notMyTurnBlockList
-      .filter((block) => block.prUrl === pr.url)
-      .some(
-        (block) =>
-          block.lastReviewSubmittedUnixMillis >= lastReviewSubmittedUnixMillis,
-      );
 
     const reviewRequestByReviewerId = new Map<number, ReviewRequestOnMyPR>();
     for (const reviewRequested of reviewsRequested) {
@@ -273,17 +283,12 @@ export class MyPR {
         ),
       );
     }
-    return new MyPR(pr, reviewerStateBuilder, notMyTurnBlockPresent);
+    return new MyPR(pr, reviewerStateBuilder);
   }
 
-  constructor(
-    pr: PR,
-    reviewerStates: ReviewerState[],
-    notMyTurnBlockPresent: boolean,
-  ) {
+  constructor(pr: PR, reviewerStates: ReviewerState[]) {
     this.pr = pr;
     this.reviewerStates = reviewerStates;
-    this.notMyTurnBlockPresent = notMyTurnBlockPresent;
   }
 
   getLastReviewSubmittedUnixMillis(): number {
@@ -304,8 +309,8 @@ export class MyPR {
     );
   }
 
-  getStatus(): MyPRReviewStatus {
-    if (this.notMyTurnBlockPresent) {
+  getStatus(notMyTurnBlocks: NotMyTurnBlock[]): MyPRReviewStatus {
+    if (notMyTurnBlocks.some((block) => this.isBlockedBy(block))) {
       return MyPRReviewStatus.NONE;
     }
 
@@ -340,11 +345,7 @@ export class MyPR {
   }
 
   static of(v: MyPR): MyPR {
-    return new MyPR(
-      v.pr,
-      v.reviewerStates ? v.reviewerStates : [],
-      v.notMyTurnBlockPresent ? v.notMyTurnBlockPresent : false,
-    );
+    return new MyPR(v.pr, v.reviewerStates ? v.reviewerStates : []);
   }
 }
 
@@ -466,6 +467,12 @@ export async function storeRepoStateList(repoStateList: RepoState[]) {
   );
 }
 
+export async function getReposState(): Promise<ReposState> {
+  return getRepoStateByFullName().then((repoStateMap) => {
+    return new ReposState(repoStateMap);
+  });
+}
+
 export async function getRepoStateByFullName(): Promise<
   Map<string, RepoState>
 > {
@@ -529,6 +536,13 @@ class NotMyTurnBlockList {
 
 const NOT_MY_TURN_BLOCK_LIST_KEY_BASE = "notMyTurnBlockList";
 const MAX_ITEM_BYTES_IN_SYNC_STORAGE = 8000 / 2; // to be on a safe side
+
+export async function addNotMyTurnBlock(block: NotMyTurnBlock) {
+  return getNotMyTurnBlockList().then((list) => {
+    list.push(block);
+    return storeNotMyTurnBlockList(list);
+  });
+}
 
 export async function storeNotMyTurnBlockList(list: NotMyTurnBlock[]) {
   const chunks = splitArray(list, MAX_ITEM_BYTES_IN_SYNC_STORAGE);

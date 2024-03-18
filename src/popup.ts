@@ -2,21 +2,18 @@ import "../styles/popup.scss";
 import { Octokit } from "@octokit/rest";
 import { syncWithGitHub } from "./serviceWorker";
 import {
+  addNotMyTurnBlock,
   getGitHubUser,
   getMonitoringEnabledRepos,
   getNotMyTurnBlockList,
-  getRepoStateByFullName,
-  getRepoStateList,
+  getReposState,
   GitHubUser,
-  MyPR,
   MyPRReviewStatus,
   NotMyTurnBlock,
   Repo,
   RepoState,
   ReviewState,
   storeGitHubUser,
-  storeNotMyTurnBlockList,
-  storeRepoStateList,
 } from "./storage";
 
 document.getElementById("go-to-options").addEventListener("click", () => {
@@ -56,7 +53,6 @@ document.getElementById("tokenForm").addEventListener("submit", (e) => {
 
 class NoGitHubToken extends Error {}
 
-// TODO(6): add instructions for fine-grained GitHub tokens.
 getGitHubUser()
   .then((gitHubUser) => {
     if (gitHubUser && gitHubUser.token) {
@@ -120,8 +116,12 @@ function showError(e: Error) {
 }
 
 async function updatePopupPage() {
-  const repoStateByFullName = await getRepoStateByFullName();
+  const reposState = await getReposState();
   const repos: Repo[] = await getMonitoringEnabledRepos();
+  const notMyTurnBlocks = await getNotMyTurnBlockList();
+  await reposState.updateIcon(repos, notMyTurnBlocks);
+
+  const repoStateByFullName = reposState.repoStateByFullName;
   const syncSuccessRepos = repos
     .filter((r) => {
       const repoState = repoStateByFullName.get(r.fullName());
@@ -157,7 +157,12 @@ async function updatePopupPage() {
     );
   });
 
-  populateFromState(syncSuccessRepos, syncFailureRepos, unsyncedRepos);
+  return populateFromState(
+    syncSuccessRepos,
+    syncFailureRepos,
+    unsyncedRepos,
+    notMyTurnBlocks,
+  );
 }
 
 const REVIEW_REQUSTED_SVG =
@@ -186,6 +191,7 @@ async function populateFromState(
   syncSuccessRepos: RepoState[],
   syncFailureRepos: RepoState[],
   unsyncedRepos: Repo[],
+  notMyTurnBlocks: NotMyTurnBlock[],
 ) {
   const repoWarnSection = document.getElementById("repoWarn");
   let badCredentialsErrorsOnly = false;
@@ -280,7 +286,7 @@ async function populateFromState(
         return v;
       });
     })
-    .filter((pr) => pr.getStatus() != MyPRReviewStatus.NONE);
+    .filter((pr) => pr.getStatus(notMyTurnBlocks) != MyPRReviewStatus.NONE);
 
   const reviewRequestedTable = document.getElementById(
     "myReviewRequestedPrTable",
@@ -389,46 +395,6 @@ async function populateFromState(
         ),
       ).then(() => updatePopupPage());
     });
-  }
-
-  async function addNotMyTurnBlock(block: NotMyTurnBlock) {
-    // To minimize chances or race conditions first store the blocks:
-    const notMyTurnBlockList = await getNotMyTurnBlockList();
-    notMyTurnBlockList.push(block);
-    await storeNotMyTurnBlockList(notMyTurnBlockList);
-    // Now manually tweak the latest repos state stored:
-    const repoStates = await getRepoStateList();
-    for (const repoState of repoStates) {
-      if (repoState.lastSyncResult.myPRs) {
-        repoState.lastSyncResult.myPRs = repoState.lastSyncResult.myPRs.map(
-          (myPR) => {
-            return myPR.isBlockedBy(block)
-              ? new MyPR(
-                  myPR.pr,
-                  myPR.reviewerStates,
-                  /* notMyTurnBlockPresent = */ true,
-                )
-              : myPR;
-          },
-        );
-      }
-      if (
-        repoState.lastSuccessfulSyncResult &&
-        repoState.lastSuccessfulSyncResult.myPRs
-      ) {
-        repoState.lastSuccessfulSyncResult.myPRs =
-          repoState.lastSuccessfulSyncResult.myPRs.map((myPR) => {
-            return myPR.isBlockedBy(block)
-              ? new MyPR(
-                  myPR.pr,
-                  myPR.reviewerStates,
-                  /* notMyTurnBlockPresent = */ true,
-                )
-              : myPR;
-          });
-      }
-    }
-    await storeRepoStateList(repoStates);
   }
 
   function deleteAllRows(htmlTableElement: HTMLTableElement) {
