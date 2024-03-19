@@ -1,3 +1,4 @@
+import { Settings } from "./settings";
 import { NotMyTurnBlock } from "./notMyTurnBlock";
 import { PR } from "./PR";
 import { ReviewState } from "./reviewState";
@@ -95,7 +96,11 @@ export class MyPR {
     this.reviewerStates = reviewerStates;
   }
 
+  /** Returns null if no reviews requested or submitted. */
   getLastReviewSubmittedUnixMillis(): number {
+    if (this.reviewerStates.length === 0) {
+      return null;
+    }
     return Math.max(...this.reviewerStates.map((v) => v.submittedAtUnixMillis));
   }
 
@@ -113,7 +118,27 @@ export class MyPR {
     );
   }
 
-  getStatus(notMyTurnBlocks: NotMyTurnBlock[]): MyPRReviewStatus {
+  isMyTurn(notMyTurnBlocks: NotMyTurnBlock[], settings: Settings): boolean {
+    const status = this.getStatus(notMyTurnBlocks, settings);
+    // noinspection RedundantIfStatementJS
+    if (
+      status === MyPRReviewStatus.NONE ||
+      status === MyPRReviewStatus.COMMENTED
+    ) {
+      return false;
+    } else {
+      return true;
+    }
+  }
+
+  getStatus(
+    notMyTurnBlocks: NotMyTurnBlock[],
+    settings: Settings,
+  ): MyPRReviewStatus {
+    if (this.reviewerStates.length === 0) {
+      return MyPRReviewStatus.NONE;
+    }
+
     if (notMyTurnBlocks.some((block) => this.isBlockedBy(block))) {
       return MyPRReviewStatus.NONE;
     }
@@ -122,29 +147,25 @@ export class MyPR {
     this.reviewerStates.forEach((reviewerState) => {
       states.push(reviewerState.state);
     });
-
-    if (states.every((state) => state === ReviewState.CHANGES_REQUESTED)) {
+    if (states.every((state) => state === ReviewState.REQUESTED)) {
       return MyPRReviewStatus.NONE;
     } else if (
       states.some((state) => state === ReviewState.CHANGES_REQUESTED)
     ) {
       return MyPRReviewStatus.CHANGES_REQUESTED;
+    } else if (
+      states.some((state) => state === ReviewState.REQUESTED) &&
+      settings.noPendingReviewsToBeMergeReady
+    ) {
+      return MyPRReviewStatus.NONE;
     } else if (states.some((state) => state === ReviewState.COMMENTED)) {
       if (states.some((state) => state === ReviewState.APPROVED)) {
-        if (states.some((state) => state === ReviewState.REQUESTED)) {
-          return MyPRReviewStatus.COMMENTED;
-        } else {
-          return MyPRReviewStatus.APPROVED_AND_COMMENTED;
-        }
+        return MyPRReviewStatus.APPROVED_AND_COMMENTED;
       } else {
         return MyPRReviewStatus.COMMENTED;
       }
     } else {
-      if (states.some((state) => state === ReviewState.REQUESTED)) {
-        return MyPRReviewStatus.NONE;
-      } else {
-        return MyPRReviewStatus.APPROVED;
-      }
+      return MyPRReviewStatus.APPROVED;
     }
   }
 

@@ -1,22 +1,28 @@
 import "../styles/options.scss";
+import { Settings } from "./settings";
 import { RepoState } from "./repoState";
 import { Repo } from "./repo";
 import { SyncStatus } from "./github";
 import { syncWithGitHub } from "./serviceWorker";
 import {
+  deleteSettings,
   getGitHubUser,
   getRepos,
   getReposState,
+  getSettings,
   storeGitHubUser,
   storeNotMyTurnBlockList,
   storeReposMap,
   storeRepoStateMap,
+  storeSettings,
 } from "./storage";
 
 const form = document.getElementById("repoForm");
 const repoListDiv = document.getElementById("repoList");
 
 showCurrentRepos();
+
+showSettings();
 
 async function showCurrentRepos() {
   getRepos()
@@ -50,8 +56,9 @@ function addRepoCheckbox(repoFullname: string, enabled: boolean) {
     updateReposToWatchFromCheckboxes();
   });
 
-  const label = document.createElement("label");
+  const label = document.createElement("label") as HTMLLabelElement;
   label.textContent = repoFullname;
+  label.htmlFor = repoFullname;
 
   repoListDiv.appendChild(checkbox);
   repoListDiv.appendChild(label);
@@ -95,6 +102,19 @@ async function updateReposToWatchFromCheckboxes() {
         console.error("Sync failed", e);
       });
   }
+}
+
+async function showSettings() {
+  const settings = await getSettings();
+  const noPendingReviewsToBeMergeReadyCheckbox = document.getElementById(
+    "noPendingReviewsToBeMergeReadySetting",
+  ) as HTMLInputElement;
+  noPendingReviewsToBeMergeReadyCheckbox.checked =
+    settings.noPendingReviewsToBeMergeReady;
+
+  noPendingReviewsToBeMergeReadyCheckbox.addEventListener("change", () => {
+    storeSettings(new Settings(noPendingReviewsToBeMergeReadyCheckbox.checked));
+  });
 }
 
 form.addEventListener("submit", (e) => {
@@ -142,6 +162,7 @@ document
 
     // #NOT_MATURE: use Promise.all instead:
     storeGitHubUser(null)
+      .then(() => deleteSettings())
       .then(() => storeReposMap(new Map<string, Repo>()))
       .then(() => storeRepoStateMap(new Map<string, RepoState>()))
       .then(() => storeNotMyTurnBlockList([]))
@@ -153,6 +174,6 @@ document
       .then(
         () =>
           (document.getElementById("main").innerHTML =
-            "<h1>Click on the extension icon in the toolbar to enter a new token.</h1>"),
+            "<h1>Click on the extension icon in the toolbar to add a new token.</h1>"),
       );
   });

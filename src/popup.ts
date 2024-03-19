@@ -1,18 +1,19 @@
 import "../styles/popup.scss";
 import { Octokit } from "@octokit/rest";
-import { MyPRReviewStatus } from "./myPR";
-import { ReviewState } from "./reviewState";
 import { GitHubUser } from "./gitHubUser";
 import { NotMyTurnBlock } from "./notMyTurnBlock";
-import { RepoState } from "./repoState";
 import { Repo } from "./repo";
+import { RepoState } from "./repoState";
+import { ReviewState } from "./reviewState";
 import { syncWithGitHub } from "./serviceWorker";
+import { Settings } from "./settings";
 import {
   addNotMyTurnBlock,
   getGitHubUser,
   getMonitoringEnabledRepos,
   getNotMyTurnBlockList,
   getReposState,
+  getSettings,
   storeGitHubUser,
 } from "./storage";
 
@@ -119,7 +120,8 @@ async function updatePopupPage() {
   const reposState = await getReposState();
   const repos: Repo[] = await getMonitoringEnabledRepos();
   const notMyTurnBlocks = await getNotMyTurnBlockList();
-  await reposState.updateIcon(repos, notMyTurnBlocks);
+  const settings = await getSettings();
+  await reposState.updateIcon(repos, notMyTurnBlocks, settings);
 
   const repoStateByFullName = reposState.repoStateByFullName;
   const syncSuccessRepos = repos
@@ -162,6 +164,7 @@ async function updatePopupPage() {
     syncFailureRepos,
     unsyncedRepos,
     notMyTurnBlocks,
+    settings,
   );
 }
 
@@ -192,6 +195,7 @@ async function populateFromState(
   syncFailureRepos: RepoState[],
   unsyncedRepos: Repo[],
   notMyTurnBlocks: NotMyTurnBlock[],
+  settings: Settings,
 ) {
   const repoWarnSection = document.getElementById("repoWarn");
   let badCredentialsErrorsOnly = false;
@@ -286,7 +290,7 @@ async function populateFromState(
         return v;
       });
     })
-    .filter((pr) => pr.getStatus(notMyTurnBlocks) != MyPRReviewStatus.NONE);
+    .filter((pr) => pr.isMyTurn(notMyTurnBlocks, settings));
 
   const reviewRequestedTable = document.getElementById(
     "myReviewRequestedPrTable",
@@ -392,6 +396,7 @@ async function populateFromState(
       addNotMyTurnBlock(
         new NotMyTurnBlock(
           myPR.pr.url,
+          // should never be null here:
           myPR.getLastReviewSubmittedUnixMillis(),
         ),
       ).then(() => updatePopupPage());

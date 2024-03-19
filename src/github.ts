@@ -2,6 +2,7 @@ import {
   GetResponseDataTypeFromEndpointMethod,
   GetResponseTypeFromEndpointMethod,
 } from "@octokit/types";
+import { Settings } from "./settings";
 import { ReviewState } from "./reviewState";
 import { NotMyTurnBlock } from "./notMyTurnBlock";
 import { PR } from "./PR";
@@ -16,6 +17,7 @@ import {
   getNotMyTurnBlockList,
   getRepos,
   getRepoStateByFullName,
+  getSettings,
   storeNotMyTurnBlockList,
   storeRepoStateMap,
 } from "./storage";
@@ -53,6 +55,7 @@ export enum SyncStatus {
   Grey = 2,
 }
 
+// TODO: move to separate file
 export class ReposState {
   repoStateByFullName: Map<string, RepoState>;
 
@@ -63,12 +66,16 @@ export class ReposState {
   async updateIcon(
     monitoringEnabledRepos: Repo[] = undefined,
     notMyTurnBlocks: NotMyTurnBlock[] = undefined,
+    settings: Settings = undefined,
   ) {
     if (!monitoringEnabledRepos) {
       monitoringEnabledRepos = await getMonitoringEnabledRepos();
     }
     if (!notMyTurnBlocks) {
       notMyTurnBlocks = await getNotMyTurnBlockList();
+    }
+    if (!settings) {
+      settings = await getSettings();
     }
     let syncStatus = SyncStatus.Green;
     for (const repo of monitoringEnabledRepos) {
@@ -77,7 +84,10 @@ export class ReposState {
         syncStatus = SyncStatus.Grey;
         break;
       }
-      syncStatus = Math.max(syncStatus, repoState.getStatus(notMyTurnBlocks));
+      syncStatus = Math.max(
+        syncStatus,
+        repoState.getSyncStatus(notMyTurnBlocks, settings),
+      );
     }
 
     let iconName: string;

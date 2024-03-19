@@ -11,19 +11,24 @@
 <body>
 <div class="container">
   <div id="main">
-    <h1>Choose GitHub repositories to watch for:</h1>
+    <h1>Choose GitHub repositories to monitor:</h1>
     <form id="repoForm">
-    <span id="repoList">
-    </span>
-      <h1>Add new repo to the list above:</h1>
+      <span id="repoList">
+      </span>
+      <h1>Add a new repository:</h1>
       <label for="newRepo">New repo:</label>
       <input type="text" id="newRepo" name="newRepo">
       <button type="submit">Add</button>
       <br/>For example, artie-shevchenko/pr-review-your-turn
       <div id="addRepoError" style="color:red"></div>
     </form>
+    <h1>Incoming reviews settings</h1>
+    <div id="incomingReviewsSettings">
+      <input type="checkbox" id="noPendingReviewsToBeMergeReadySetting">
+      <label for="noPendingReviewsToBeMergeReadySetting">PRs with pending reviews are never merge-ready</label>
+    </div>
     <h1>Reset</h1>
-    <button id ="factoryResetButton">Delete GitHub token and all the setup</button>
+    <button id="factoryResetButton">Delete GitHub token and all the setup</button>
   </div>
 </div>
 

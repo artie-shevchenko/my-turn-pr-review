@@ -1,4 +1,4 @@
-import { MyPRReviewStatus } from "./myPR";
+import { Settings } from "./settings";
 import { NotMyTurnBlock } from "./notMyTurnBlock";
 import { RepoSyncResult } from "./repoSyncResult";
 import { SyncStatus } from "./github";
@@ -19,7 +19,10 @@ export class RepoState {
     this.lastSuccessfulSyncResult = lastSuccessfulSyncResult;
   }
 
-  getStatus(notMyTurnBlocks: NotMyTurnBlock[]): SyncStatus {
+  getSyncStatus(
+    notMyTurnBlocks: NotMyTurnBlock[],
+    settings: Settings,
+  ): SyncStatus {
     if (!this.hasRecentSuccessfulSync()) {
       return SyncStatus.Grey;
     }
@@ -29,8 +32,8 @@ export class RepoState {
         ? SyncStatus.Red
         : SyncStatus.Green;
     // Yellow max based on myPRs. TODO(36): make it user-configurable:
-    const myPRsStatus = this.lastSuccessfulSyncResult.myPRs.some(
-      (pr) => pr.getStatus(notMyTurnBlocks) != MyPRReviewStatus.NONE,
+    const myPRsStatus = this.lastSuccessfulSyncResult.myPRs.some((pr) =>
+      pr.isMyTurn(notMyTurnBlocks, settings),
     )
       ? SyncStatus.Yellow
       : SyncStatus.Green;

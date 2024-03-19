@@ -30,7 +30,7 @@ setInterval(function () {
     .catch((e) => {
       console.error("Sync failed", e);
     });
-}, 30000);
+}, 20000);
 
 let syncInProgress = false;
 

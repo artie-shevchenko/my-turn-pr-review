@@ -1,4 +1,5 @@
 import { getBucket } from "@extend-chrome/storage";
+import { Settings } from "./settings";
 import { ReposState } from "./github";
 import { GitHubUser } from "./gitHubUser";
 import { NotMyTurnBlock } from "./notMyTurnBlock";
@@ -105,7 +106,6 @@ export async function getRepoStateList(): Promise<RepoState[]> {
 // GitHubUser storage:
 
 export async function storeGitHubUser(user: GitHubUser) {
-  console.log("Storing GitHub user");
   const store = getBucket<GitHubUser>("gitHubUser", "sync");
   if (!user) {
     return store.clear();
@@ -116,6 +116,38 @@ export async function storeGitHubUser(user: GitHubUser) {
 export async function getGitHubUser(): Promise<GitHubUser> {
   const store = getBucket<GitHubUser>("gitHubUser", "sync");
   return store.get();
+}
+
+// Settings storage:
+
+export async function storeSettings(settings: Settings) {
+  const store = getBucket<Settings>("settings", "sync");
+  return store.set(settings);
+}
+
+export async function deleteSettings() {
+  const store = getBucket<Settings>("settings", "sync");
+  return store.clear();
+}
+
+export async function getSettings(): Promise<Settings> {
+  const store = getBucket<Settings>("settings", "sync");
+  return (
+    store
+      .get()
+      // storage returns an Object, not Settings...
+      .then((stored) => {
+        // looks like if(!stored) does something fancy in JS for objects with a boolean
+        // property...
+        return stored === undefined
+          ? new Settings(/* noPendingReviewsToBeMergeReady = */ true)
+          : new Settings(
+              stored.noPendingReviewsToBeMergeReady !== undefined
+                ? stored.noPendingReviewsToBeMergeReady
+                : true,
+            );
+      })
+  );
 }
 
 // NotMyTurnBlock storage:
