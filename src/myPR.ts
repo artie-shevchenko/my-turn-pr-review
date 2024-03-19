@@ -165,6 +165,9 @@ export class MyPR {
       settings.noPendingReviewsToBeMergeReady
     ) {
       return MyPRReviewStatus.NONE;
+    } else if (states.every((state) => state === ReviewState.COMMENTED)) {
+      // what else can it mean? Other scenarios seem to be rare.
+      return MyPRReviewStatus.CHANGES_REQUESTED;
     } else if (states.some((state) => state === ReviewState.COMMENTED)) {
       if (states.some((state) => state === ReviewState.APPROVED)) {
         return MyPRReviewStatus.APPROVED_AND_COMMENTED;
