@@ -1,8 +1,8 @@
 import "../styles/options.scss";
+import { SyncStatus } from "./reposState";
 import { Settings } from "./settings";
 import { RepoState } from "./repoState";
 import { Repo } from "./repo";
-import { SyncStatus } from "./github";
 import { syncWithGitHub } from "./serviceWorker";
 import {
   deleteSettings,

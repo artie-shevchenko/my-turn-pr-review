@@ -1,7 +1,7 @@
+import { SyncStatus } from "./reposState";
 import { Settings } from "./settings";
 import { NotMyTurnBlock } from "./notMyTurnBlock";
 import { RepoSyncResult } from "./repoSyncResult";
-import { SyncStatus } from "./github";
 
 export class RepoState {
   readonly fullName: string;

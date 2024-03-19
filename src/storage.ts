@@ -1,6 +1,6 @@
 import { getBucket } from "@extend-chrome/storage";
+import { ReposState } from "./reposState";
 import { Settings } from "./settings";
-import { ReposState } from "./github";
 import { GitHubUser } from "./gitHubUser";
 import { NotMyTurnBlock } from "./notMyTurnBlock";
 import { Repo } from "./repo";
