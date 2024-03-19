@@ -1,6 +1,6 @@
 {
-  "name": "Your Turn - PR review",
-  "description": "PRs awaiting your review",
+  "name": "Your Turn - PR Review",
+  "description": "GitHub Pull Requests that need your attention.",
   "version": "0.1.4",
   "manifest_version": 3,
   "background": {
