@@ -382,7 +382,7 @@ async function populateFromState(
     const notMyTurnCell = row.insertCell(3);
     notMyTurnCell.align = "center";
     notMyTurnCell.innerHTML =
-      '<img src="icons/xMark16.png" style="cursor: pointer;" id="notMyTurn' +
+      '<img src="icons/xMark16.png" style="cursor: pointer; width: 12px;" id="notMyTurn' +
       i +
       '" alt="Not my turn" title="Not my turn"/>';
     document.getElementById("notMyTurn" + i).addEventListener("click", () => {
