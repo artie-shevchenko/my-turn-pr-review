@@ -1,7 +1,7 @@
 import { Octokit } from "@octokit/rest";
 import { GitHubUser } from "./gitHubUser";
 import { sync } from "./github";
-import { getGitHubUser } from "./storage";
+import { getGitHubUser, getReposState } from "./storage";
 
 chrome.runtime.onInstalled.addListener(async (details) => {
   if (details.reason == "install") {
@@ -20,9 +20,15 @@ chrome.runtime.onStartup.addListener(() => {
 
 export let octokit: Octokit;
 
+// This keeps the worker alive, as recommended by
+// https://developer.chrome.com/blog/longer-esw-lifetimes/
 setInterval(function () {
-  // This also keeps the worker alive, as recommended by
-  // https://developer.chrome.com/blog/longer-esw-lifetimes/
+  getReposState().then(() => {
+    console.log("heart beat");
+  });
+}, 10000);
+
+setInterval(function () {
   getGitHubUser()
     .then((gitHubUser) => {
       syncWithGitHub(gitHubUser);
