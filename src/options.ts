@@ -106,11 +106,11 @@ async function updateReposToWatchFromCheckboxes() {
 
 async function showSettings() {
   const settings = await getSettings();
-  const noPendingReviewsToBeMergeReadyCheckbox = document.getElementById(
-    "noPendingReviewsToBeMergeReadySetting",
+  const mergeReadyWithPendingReviewsCheckbox = document.getElementById(
+    "mergeReadyWithPendingReviewsSetting",
   ) as HTMLInputElement;
-  noPendingReviewsToBeMergeReadyCheckbox.checked =
-    settings.noPendingReviewsToBeMergeReady;
+  mergeReadyWithPendingReviewsCheckbox.checked =
+    !settings.noPendingReviewsToBeMergeReady;
   const commentEqualsChangesRequestedCheckbox = document.getElementById(
     "commentEqualsChangesRequestedSetting",
   ) as HTMLInputElement;
@@ -120,12 +120,12 @@ async function showSettings() {
   const triggerStoreSettings = () => {
     storeSettings(
       new Settings(
-        noPendingReviewsToBeMergeReadyCheckbox.checked,
+        !mergeReadyWithPendingReviewsCheckbox.checked,
         commentEqualsChangesRequestedCheckbox.checked,
       ),
     );
   };
-  noPendingReviewsToBeMergeReadyCheckbox.addEventListener(
+  mergeReadyWithPendingReviewsCheckbox.addEventListener(
     "change",
     triggerStoreSettings,
   );
