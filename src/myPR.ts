@@ -1,7 +1,7 @@
-import { Settings } from "./settings";
 import { NotMyTurnBlock } from "./notMyTurnBlock";
 import { PR } from "./PR";
 import { ReviewState } from "./reviewState";
+import { Settings } from "./settings";
 
 export class MyPR {
   pr: PR;
@@ -145,7 +145,14 @@ export class MyPR {
 
     const states = [] as ReviewState[];
     this.reviewerStates.forEach((reviewerState) => {
-      states.push(reviewerState.state);
+      let state = reviewerState.state;
+      if (
+        settings.commentEqualsChangesRequested &&
+        state === ReviewState.COMMENTED
+      ) {
+        state = ReviewState.CHANGES_REQUESTED;
+      }
+      states.push(state);
     });
     if (states.every((state) => state === ReviewState.REQUESTED)) {
       return MyPRReviewStatus.NONE;

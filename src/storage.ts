@@ -140,11 +140,17 @@ export async function getSettings(): Promise<Settings> {
         // looks like if(!stored) does something fancy in JS for objects with a boolean
         // property...
         return stored === undefined
-          ? new Settings(/* noPendingReviewsToBeMergeReady = */ true)
+          ? new Settings(
+              /* noPendingReviewsToBeMergeReady = */ false,
+              /* commentEqualsChangesRequested = */ false,
+            )
           : new Settings(
               stored.noPendingReviewsToBeMergeReady !== undefined
                 ? stored.noPendingReviewsToBeMergeReady
-                : true,
+                : false,
+              stored.commentEqualsChangesRequested !== undefined
+                ? stored.commentEqualsChangesRequested
+                : false,
             );
       })
   );

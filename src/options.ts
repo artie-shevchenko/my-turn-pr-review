@@ -111,10 +111,28 @@ async function showSettings() {
   ) as HTMLInputElement;
   noPendingReviewsToBeMergeReadyCheckbox.checked =
     settings.noPendingReviewsToBeMergeReady;
+  const commentEqualsChangesRequestedCheckbox = document.getElementById(
+    "commentEqualsChangesRequestedSetting",
+  ) as HTMLInputElement;
+  commentEqualsChangesRequestedCheckbox.checked =
+    settings.commentEqualsChangesRequested;
 
-  noPendingReviewsToBeMergeReadyCheckbox.addEventListener("change", () => {
-    storeSettings(new Settings(noPendingReviewsToBeMergeReadyCheckbox.checked));
-  });
+  const triggerStoreSettings = () => {
+    storeSettings(
+      new Settings(
+        noPendingReviewsToBeMergeReadyCheckbox.checked,
+        commentEqualsChangesRequestedCheckbox.checked,
+      ),
+    );
+  };
+  noPendingReviewsToBeMergeReadyCheckbox.addEventListener(
+    "change",
+    triggerStoreSettings,
+  );
+  commentEqualsChangesRequestedCheckbox.addEventListener(
+    "change",
+    triggerStoreSettings,
+  );
 }
 
 form.addEventListener("submit", (e) => {
