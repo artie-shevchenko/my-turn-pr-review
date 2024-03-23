@@ -150,7 +150,7 @@ export async function getSettings(): Promise<Settings> {
                 : false,
               stored.commentEqualsChangesRequested !== undefined
                 ? stored.commentEqualsChangesRequested
-                : false,
+                : true,
             );
       })
   );
