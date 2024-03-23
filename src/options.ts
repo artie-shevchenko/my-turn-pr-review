@@ -1,12 +1,11 @@
 import "../styles/options.scss";
+import { trySync } from "./sync";
 import { SyncStatus } from "./reposState";
 import { Settings } from "./settings";
 import { RepoState } from "./repoState";
-import { Repo } from "./repo";
-import { syncWithGitHub } from "./serviceWorker";
+import { Repo, RepoType } from "./repo";
 import {
   deleteSettings,
-  getGitHubUser,
   getRepos,
   getReposState,
   getSettings,
@@ -37,7 +36,7 @@ async function showCurrentRepos() {
         return 0;
       });
       for (const repo of sortedRepos) {
-        addRepoCheckbox(repo.fullName(), repo.monitoringEnabled);
+        addGitHubRepoCheckbox(repo.fullName(), repo.monitoringEnabled);
       }
     })
     .catch((e) => {
@@ -45,10 +44,10 @@ async function showCurrentRepos() {
     });
 }
 
-function addRepoCheckbox(repoFullname: string, enabled: boolean) {
+function addGitHubRepoCheckbox(repoFullname: string, enabled: boolean) {
   const checkbox = document.createElement("input");
   checkbox.type = "checkbox";
-  checkbox.name = "reposCheckboxes";
+  checkbox.name = "gitHubReposCheckboxes";
   checkbox.id = repoFullname;
   checkbox.checked = enabled;
 
@@ -75,32 +74,26 @@ async function updateReposToWatchFromCheckboxes() {
   }
   updatingRepos = true;
 
-  const checkBoxes = Array.from(
-    document.querySelectorAll('input[name="reposCheckboxes"]'),
+  const gitHubCheckBoxes = Array.from(
+    document.querySelectorAll('input[name="gitHubReposCheckboxes"]'),
   ).map((e) => e as HTMLInputElement);
 
   const reposByFullName = new Map<string, Repo>();
-  checkBoxes.forEach((checkBox) => {
+  gitHubCheckBoxes.forEach((checkBox) => {
     reposByFullName.set(
       checkBox.id,
-      Repo.fromFullName(checkBox.id, checkBox.checked),
+      Repo.fromFullName(checkBox.id, RepoType.GITHUB, checkBox.checked),
     );
   });
   await storeReposMap(reposByFullName);
-  console.log("Updated repos to watch:", checkBoxes);
+  console.log("Updated repos to watch:", gitHubCheckBoxes);
   updatingRepos = false;
 
   const reposState = await getReposState();
   const syncStatus = await reposState.updateIcon();
   if (syncStatus === SyncStatus.Grey) {
     console.log("Triggering sync as there are new repos added.");
-    getGitHubUser()
-      .then((gitHubUser) => {
-        syncWithGitHub(gitHubUser);
-      })
-      .catch((e) => {
-        console.error("Sync failed", e);
-      });
+    trySync();
   }
 }
 
@@ -160,7 +153,7 @@ form.addEventListener("submit", (e) => {
 
   console.log("Evaluating adding " + newRepoFullName);
   if (document.getElementById(newRepoFullName) == undefined) {
-    addRepoCheckbox(newRepoFullName, true);
+    addGitHubRepoCheckbox(newRepoFullName, true);
     updateReposToWatchFromCheckboxes();
     newRepoInput.value = "";
     addRepoSuccessDiv.style.display = "block";

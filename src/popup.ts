@@ -1,11 +1,11 @@
 import "../styles/popup.scss";
 import { Octokit } from "@octokit/rest";
+import { trySyncWithCredentials } from "./sync";
 import { GitHubUser } from "./gitHubUser";
 import { NotMyTurnBlock } from "./notMyTurnBlock";
 import { Repo } from "./repo";
 import { RepoState } from "./repoState";
 import { ReviewState } from "./reviewState";
-import { syncWithGitHub } from "./serviceWorker";
 import { Settings } from "./settings";
 import {
   addNotMyTurnBlock,
@@ -40,7 +40,7 @@ document.getElementById("tokenForm").addEventListener("submit", (e) => {
       const gitHubUser = new GitHubUser(userId, newToken);
       const result = storeGitHubUser(gitHubUser);
       // trigger sync:
-      syncWithGitHub(gitHubUser);
+      trySyncWithCredentials(gitHubUser);
       return result;
     })
     .then(() => {

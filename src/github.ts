@@ -2,23 +2,14 @@ import {
   GetResponseDataTypeFromEndpointMethod,
   GetResponseTypeFromEndpointMethod,
 } from "@octokit/types";
-import { ReposState } from "./reposState";
 import { MyPR, ReviewOnMyPR, ReviewRequestOnMyPR } from "./myPR";
-import { NotMyTurnBlock } from "./notMyTurnBlock";
 import { PR } from "./PR";
-import { Repo } from "./repo";
+import { Repo, RepoType } from "./repo";
 import { RepoState } from "./repoState";
 import { RepoSyncResult } from "./repoSyncResult";
 import { ReviewRequest } from "./reviewRequest";
 import { ReviewState } from "./reviewState";
-import { octokit } from "./serviceWorker";
-import {
-  getNotMyTurnBlockList,
-  getRepos,
-  getRepoStateByFullName,
-  storeNotMyTurnBlockList,
-  storeRepoStateMap,
-} from "./storage";
+import { delay, octokit } from "./sync";
 
 const PULLS_PER_PAGE = 100;
 const REVIEWS_PER_PAGE = 100;
@@ -43,57 +34,10 @@ type IssuesListEventsResponseDataType = GetResponseDataTypeFromEndpointMethod<
   typeof octokit.issues.listEvents
 >;
 
-let gitHubCallsCounter = 0;
-let syncStartUnixMillis = 0;
+export let gitHubCallsCounter = 0;
 
-/**
- * Note: no concurrent calls!
- */
-export async function sync(myGitHubUserId: number) {
-  const blocksAtSyncStart = await getNotMyTurnBlockList();
-
-  // #NOT_MATURE: what if it manages to exceed the quota in a single sync?
-  await throttle();
-
+export function resetGitHubCallsCounter() {
   gitHubCallsCounter = 0;
-  syncStartUnixMillis = Date.now();
-  const allReposIncludingDisabled = await getRepos();
-  const repos = allReposIncludingDisabled.filter((v) => v.monitoringEnabled);
-  const prevRepoStateByFullName = await getRepoStateByFullName();
-  const repoStateByFullNameBuilder = new Map<string, RepoState>();
-  // It's probably better to do these GitHub requests in a sequential manner so that GitHub is not
-  // tempted to block them even if user monitors many repos:
-  for (const repo of repos) {
-    let repoState = prevRepoStateByFullName.get(repo.fullName());
-    if (!repoState) {
-      repoState = new RepoState(repo.fullName());
-    }
-    repoStateByFullNameBuilder.set(repo.fullName(), repoState);
-    await syncRepo(repoState, myGitHubUserId);
-  }
-  const reposState = new ReposState(repoStateByFullNameBuilder);
-
-  // Update in background:
-  storeRepoStateMap(repoStateByFullNameBuilder);
-
-  const blocksNow = await getNotMyTurnBlockList();
-  if (blocksNow.length == blocksAtSyncStart.length) {
-    const monitoringDisabledRepos = allReposIncludingDisabled.filter(
-      (v) => !v.monitoringEnabled,
-    );
-    // In background:
-    maybeCleanUpObsoleteBlocks(
-      reposState.asArray(),
-      blocksNow,
-      monitoringDisabledRepos,
-    );
-  }
-
-  console.log(gitHubCallsCounter + " GitHub API calls in the last sync");
-
-  await reposState.updateIcon();
-
-  console.info("Sync finished.");
 }
 
 /**
@@ -101,7 +45,7 @@ export async function sync(myGitHubUserId: number) {
  *
  * @param repo The repo state will be updated as a result of the call.
  */
-async function syncRepo(repo: RepoState, myGitHubUserId: number) {
+export async function syncGitHubRepo(repo: RepoState, myGitHubUserId: number) {
   const repoSyncResult = new RepoSyncResult();
   repoSyncResult.syncStartUnixMillis = Date.now();
   const requestsForMyReviewBuilder = [] as ReviewRequest[];
@@ -266,41 +210,6 @@ async function getLatestReviewRequestedEventTimestamp(
   return result;
 }
 
-async function maybeCleanUpObsoleteBlocks(
-  repoStates: RepoState[],
-  notMyTurnBlocksFromStorage: NotMyTurnBlock[],
-  monitoringDisabledRepos: Repo[],
-) {
-  if (Math.random() > 0.01) {
-    return;
-  }
-
-  if (repoStates.some((r) => r.lastSyncResult.errorMsg)) {
-    return;
-  }
-
-  const activeBlocksBuilder = new Set<NotMyTurnBlock>();
-  for (const repoState of repoStates) {
-    for (const myPR of repoState.lastSyncResult.myPRs) {
-      notMyTurnBlocksFromStorage
-        .filter((block) => myPR.isBlockedBy(block))
-        .forEach((block) => activeBlocksBuilder.add(block));
-    }
-  }
-
-  // Preserve blocks in case monitoring for a repo is temporary disabled and then re-enabled:
-  for (const repo of monitoringDisabledRepos) {
-    notMyTurnBlocksFromStorage
-      // #NOT_MATURE: yes there's a low chance of false positives but that's okay:
-      .filter((v) => v.prUrl.includes(repo.fullName()))
-      .forEach((v) => activeBlocksBuilder.add(v));
-  }
-
-  if (notMyTurnBlocksFromStorage.length != activeBlocksBuilder.size) {
-    return storeNotMyTurnBlockList([...activeBlocksBuilder]);
-  }
-}
-
 async function listPullRequests(
   repo: RepoState,
   pageNumber: number,
@@ -308,7 +217,7 @@ async function listPullRequests(
 ): Promise<PullsListResponseType> {
   try {
     // A little hack just to get repo owner and name:
-    const r = Repo.fromFullName(repo.fullName);
+    const r = Repo.fromFullName(repo.fullName, RepoType.GITHUB);
     if (retryNumber > 0) {
       // exponential backoff:
       await delay(1000 * Math.pow(2, retryNumber - 1));
@@ -344,7 +253,7 @@ async function listReviews(
 ): Promise<PullsListReviewsResponseType> {
   try {
     // A little hack just to get repo owner and name:
-    const r = Repo.fromFullName(repo.fullName);
+    const r = Repo.fromFullName(repo.fullName, RepoType.GITHUB);
     if (retryNumber > 0) {
       // exponential backoff:
       await delay(1000 * Math.pow(2, retryNumber - 1));
@@ -380,7 +289,7 @@ async function listEvents(
 ): Promise<IssuesListEventsResponseType> {
   try {
     // A little hack just to get repo owner and name:
-    const r = Repo.fromFullName(repo.fullName);
+    const r = Repo.fromFullName(repo.fullName, RepoType.GITHUB);
     if (retryNumber > 0) {
       // exponential backoff:
       await delay(1000 * Math.pow(2, retryNumber - 1));
@@ -405,23 +314,4 @@ async function listEvents(
       return await listEvents(repo, pullNumber, pageNumber, retryNumber + 1);
     }
   }
-}
-
-// should prevent throttling by GitHub
-async function throttle() {
-  const secondsSinceLastSyncStart = (Date.now() - syncStartUnixMillis) / 1000;
-  if (secondsSinceLastSyncStart < 2 * gitHubCallsCounter) {
-    // to be on a safe side target 0.5 RPS (it's 5000 requests per hour quota):
-    const waitMs = (2 * gitHubCallsCounter - secondsSinceLastSyncStart) * 1000;
-    console.log(
-      "Throttling GitHub calls to 0.5 RPS. Waiting for " + waitMs + "ms",
-    );
-    await delay(waitMs);
-  }
-}
-
-function delay(milliseconds: number) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, milliseconds);
-  });
 }
