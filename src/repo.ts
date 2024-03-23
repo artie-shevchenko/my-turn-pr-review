@@ -1,5 +1,6 @@
 export enum RepoType {
   GITHUB,
+  GITLAB,
 }
 
 export class Repo {

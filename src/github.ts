@@ -41,8 +41,6 @@ export function resetGitHubCallsCounter() {
 }
 
 /**
- * Returns 2 for grey icon, 1 for red, 0 for yellow, -1 for green..
- *
  * @param repo The repo state will be updated as a result of the call.
  */
 export async function syncGitHubRepo(repo: RepoState, myGitHubUserId: number) {
