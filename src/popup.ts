@@ -220,7 +220,8 @@ async function populateFromState(
               )
             ) {
               message +=
-                ' <a href="https://github.com/settings/tokens" target="_blank">Configure SSO (authorize the access token)</a>.';
+                ' <a href="https://github.com/settings/tokens" target="_blank">Configure SSO (authorize the access token)</a>.<br/>' +
+                '<img src="configure-sso-instructions-later.png" style="border: 1px solid #555; width: 600px;" alt="Grant access to all the necessary organizations">';
             }
             return message;
           })
