@@ -57,7 +57,7 @@ function addRepoCheckbox(repoFullname: string, enabled: boolean) {
   });
 
   const label = document.createElement("label") as HTMLLabelElement;
-  label.textContent = repoFullname;
+  label.textContent = " " + repoFullname;
   label.htmlFor = repoFullname;
 
   repoListDiv.appendChild(checkbox);
@@ -141,6 +141,9 @@ form.addEventListener("submit", (e) => {
   const addRepoErrorDiv = document.getElementById(
     "addRepoError",
   ) as HTMLInputElement;
+  const addRepoSuccessDiv = document.getElementById(
+    "addRepoSuccess",
+  ) as HTMLInputElement;
   const newRepoFullName = newRepoInput.value.trim();
 
   addRepoErrorDiv.style.display = "none";
@@ -160,9 +163,11 @@ form.addEventListener("submit", (e) => {
     addRepoCheckbox(newRepoFullName, true);
     updateReposToWatchFromCheckboxes();
     newRepoInput.value = "";
+    addRepoSuccessDiv.style.display = "block";
   } else {
     addRepoErrorDiv.style.display = "block";
-    addRepoErrorDiv.innerHTML = "Repository already in the list.";
+    addRepoErrorDiv.innerHTML =
+      "Repository already present in the list above. Make sure it's checked.";
     return;
   }
 });
