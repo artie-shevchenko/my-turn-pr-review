@@ -1,5 +1,5 @@
 {
-  "name": "Your Turn - PR Review",
+  "name": "My Turn - PR Review",
   "description": "GitHub Pull Requests that need your attention.",
   "version": "0.1.4",
   "manifest_version": 3,
@@ -12,7 +12,7 @@
     "open_in_tab": true
   },
   "action": {
-    "default_title": "Your Turn - PR review",
+    "default_title": "My Turn - PR review",
     "default_popup": "popup.html",
     "default_icon": {
       "16": "/icons/red16.png",
