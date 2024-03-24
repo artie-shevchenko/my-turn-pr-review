@@ -21,13 +21,15 @@ document.getElementById("go-to-options").addEventListener("click", () => {
   chrome.runtime.openOptionsPage();
 });
 
-document.getElementById("tokenForm").addEventListener("submit", (e) => {
+// TODO(29): add exactly the same for GitLab. Either GitHub or GitLab is enough to start working
+// with extension.
+document.getElementById("gitHubTokenForm").addEventListener("submit", (e) => {
   e.preventDefault();
-  const newToken = (
-    document.getElementById("newToken") as HTMLInputElement
+  const newGitHubToken = (
+    document.getElementById("newGitHubToken") as HTMLInputElement
   ).value.trim();
   new Octokit({
-    auth: newToken,
+    auth: newGitHubToken,
   })
     .request("GET /user", {
       headers: {
@@ -37,10 +39,10 @@ document.getElementById("tokenForm").addEventListener("submit", (e) => {
     .then((v) => {
       const userId = v.data.id;
       console.log("GitHub user ID: " + userId);
-      const gitHubUser = new GitHubUser(userId, newToken);
+      const gitHubUser = new GitHubUser(userId, newGitHubToken);
       const result = storeGitHubUser(gitHubUser);
       // trigger sync:
-      trySyncWithCredentials(gitHubUser);
+      trySyncWithCredentials(gitHubUser, undefined);
       return result;
     })
     .then(() => {
@@ -54,6 +56,7 @@ document.getElementById("tokenForm").addEventListener("submit", (e) => {
 
 class NoGitHubToken extends Error {}
 
+// TODO(29): show setup only if no valid GitHub AND no valid GitLab token.
 getGitHubUser()
   .then((gitHubUser) => {
     if (gitHubUser && gitHubUser.token) {
@@ -94,6 +97,7 @@ getGitHubUser()
 
 const BAD_CREDENTIALS_GITHUB_ERROR_MSG = "Bad credentials";
 
+// TODO(29): add similar error processing for GitLab.
 function showError(e: Error) {
   document.getElementById("auth").style.display = "block";
   if (e instanceof NoGitHubToken) {
@@ -123,10 +127,9 @@ async function updatePopupPage() {
   const settings = await getSettings();
   await reposState.updateIcon(repos, notMyTurnBlocks, settings);
 
-  const repoStateByFullName = reposState.repoStateByFullName;
   const syncSuccessRepos = repos
     .filter((r) => {
-      const repoState = repoStateByFullName.get(r.fullName());
+      const repoState = reposState.getState(r);
       if (!repoState) {
         return false;
       }
@@ -138,10 +141,10 @@ async function updatePopupPage() {
             repoState.lastSyncResult.syncStartUnixMillis)
       );
     })
-    .map((r) => repoStateByFullName.get(r.fullName()));
+    .map((r) => reposState.getState(r));
   const syncFailureRepos = repos
     .filter((r) => {
-      const repoState = repoStateByFullName.get(r.fullName());
+      const repoState = reposState.getState(r);
       if (!repoState) {
         return false;
       }
@@ -151,7 +154,7 @@ async function updatePopupPage() {
       // #NOT_MATURE: is the following always true?
       return repoState.lastSyncResult.errorMsg;
     })
-    .map((r) => repoStateByFullName.get(r.fullName()));
+    .map((r) => reposState.getState(r));
   const unsyncedRepos = repos.filter((r) => {
     return (
       !syncSuccessRepos.some((v) => v.fullName === r.fullName()) &&
@@ -231,6 +234,7 @@ async function populateFromState(
     repoWarnSection.innerHTML = "";
   }
 
+  // TODO(29): not sure if it's worth separating GitLab from GitHub repos here, probably it is:
   const minSuccessSyncStartUnixMillis = Math.min(
     ...syncSuccessRepos.map(
       (r) => r.lastSuccessfulSyncResult.syncStartUnixMillis,

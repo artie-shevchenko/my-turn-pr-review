@@ -12,16 +12,28 @@
 <div class="container">
   <div id="main">
     <h1>Choose GitHub repositories to monitor:</h1>
-    <form id="repoForm">
-      <span id="repoList">
+    <form id="gitHubRepoForm">
+      <span id="gitHubRepoList">
       </span>
       <h1>Add a new GitHub repository:</h1>
-      <label for="newRepo">New repo:</label>
-      <input type="text" id="newRepo" name="newRepo">
+      <label for="newGitHubRepo">New repo:</label>
+      <input type="text" id="newGitHubRepo" name="newGitHubRepo">
       <button type="submit">Add</button>
       <br/>For example, artie-shevchenko/my-turn-pr-review
-      <div id="addRepoSuccess" style="display:none; color:yellow">Success! Sync with GitHub has started. It may take up to several minutes for large repos.<br/>Work with PRs in other repositories? Add them now!</div>
-      <div id="addRepoError" style="color:yellow"></div>
+      <div id="addGitHubRepoSuccess" style="display:none; color:yellow">Success! Sync with GitHub has started. It may take up to several minutes for large repos.<br/>Work with PRs in other repositories? Add them now!</div>
+      <div id="addGitHubRepoError" style="color:yellow"></div>
+    </form>
+    <h1>Choose GitLab repositories to monitor:</h1>
+    <form id="gitLabRepoForm">
+      <span id="gitLabRepoList">
+      </span>
+      <h1>Add a new GitLab repository:</h1>
+      <label for="newGitLabRepo">New repo:</label>
+      <input type="text" id="newGitLabRepo" name="newGitLabRepo">
+      <button type="submit">Add</button>
+      <br/>For example, TODO(29)
+      <div id="addGitLabRepoSuccess" style="display:none; color:yellow">Success! Sync with GitLab has started. It may take up to several minutes for large repos.<br/>Work with PRs in other repositories? Add them now!</div>
+      <div id="addGitLabRepoError" style="color:yellow"></div>
     </form>
     <h1>Settings</h1>
     <div id="incomingReviewsSettings">

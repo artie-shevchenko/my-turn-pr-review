@@ -15,16 +15,25 @@
     <img src="pin-instructions.png" style="border: 1px solid #555; width: 300px;" alt="Open the Extensions Menu by clicking the puzzle piece icon next to your profile avatar. Then press the Pushpin icon">
     <h2>2. Move the extension icon to the leftmost position</h2>
     <img src="move-icon-left-instructions.png" style="border: 1px solid #555; width: 350px;" alt="Move the extension icon to the leftmost position. Drag-and-drop">
-    <h2>3. Add your GitHub access token</h2>
+    <h2>3. Add your GitHub or GitLab access token</h2>
   </div>
 <div id="auth" style="display:none">
   <div id="error" style="display:none; color: red"></div>
-  <form id="tokenForm">
+  <h3>GitHub</h3>
+  <form id="gitHubTokenForm">
       1. <a href="https://github.com/settings/tokens/new?description=my-turn-pr-review-chrome&scopes=repo,read:project,read:org" target="_blank">Generate a GitHub token with repo, read:org, and read:project scopes</a>.<br/>
       2. If you see the "Configure SSO" select box authorize access to all the necessary organizations:<br/>
       <img src="configure-sso-instructions-setup.png" style="border: 1px solid #555; width: 600px;" alt="Grant access to all the necessary organizations">
       3. Submit token:
-    <input type="text" id="newToken" name=newToken" autocomplete="off">
+    <input type="text" id="newGitHubToken" name=newGitHubToken" autocomplete="off">
+    <button type="submit">Submit</button>
+  </form>
+  <h3>GitLab</h3>
+  <form id="gitLabTokenForm">
+      1. Generate a GitLab token. TODO(29): add a link<br/>
+      2. Configure SSO. TODO(29): add instructions<br/>
+      3. Submit token:
+    <input type="text" id="newGitLabToken" name=newGitLabToken" autocomplete="off">
     <button type="submit">Submit</button>
   </form>
 </div>
