@@ -4,24 +4,21 @@ import { Settings } from "./settings";
 import { NotMyTurnBlock } from "./notMyTurnBlock";
 import { RepoSyncResult } from "./repoSyncResult";
 
-export class RepoState {
-  readonly repoType: RepoType;
-  readonly fullName: string;
-  lastSyncResult: RepoSyncResult;
-  // Undefined if there were no successful syncs.
-  lastSuccessfulSyncResult: RepoSyncResult;
+export class RepoStateDto {
+  public readonly repoType: RepoType;
+  public readonly fullName: string;
+  public lastSyncResult?: RepoSyncResult;
+  public lastSuccessfulSyncResult?: RepoSyncResult;
+}
 
+export class RepoState implements RepoStateDto {
   constructor(
-    repoType: RepoType,
-    repoFullName: string,
-    lastSyncResult: RepoSyncResult = undefined,
-    lastSuccessfulSyncResult: RepoSyncResult = undefined,
-  ) {
-    this.repoType = repoType;
-    this.fullName = repoFullName;
-    this.lastSyncResult = lastSyncResult;
-    this.lastSuccessfulSyncResult = lastSuccessfulSyncResult;
-  }
+    public readonly repoType: RepoType,
+    public readonly fullName: string,
+    public lastSyncResult?: RepoSyncResult,
+    // Undefined if there were no successful syncs.
+    public lastSuccessfulSyncResult?: RepoSyncResult,
+  ) {}
 
   getSyncStatus(
     notMyTurnBlocks: NotMyTurnBlock[],
@@ -50,15 +47,13 @@ export class RepoState {
     );
   }
 
-  // Probably better replaced with a dto interface. See
-  // https://stackoverflow.com/questions/34031448/typescript-typeerror-myclass-myfunction-is-not-a-function
-  static of(repoState: RepoState): RepoState {
+  static fromDto(dto: RepoStateDto): RepoState {
     return new RepoState(
-      repoState.repoType ? repoState.repoType : RepoType.GITHUB,
-      repoState.fullName,
-      RepoSyncResult.of(repoState.lastSyncResult),
-      repoState.lastSuccessfulSyncResult
-        ? RepoSyncResult.of(repoState.lastSuccessfulSyncResult)
+      dto.repoType ? dto.repoType : RepoType.GITHUB,
+      dto.fullName,
+      RepoSyncResult.fromDto(dto.lastSyncResult),
+      dto.lastSuccessfulSyncResult
+        ? RepoSyncResult.fromDto(dto.lastSuccessfulSyncResult)
         : undefined,
     );
   }
