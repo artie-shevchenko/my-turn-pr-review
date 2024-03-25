@@ -1,9 +1,4 @@
-export class GitHubUser {
+export interface GitHubUser {
   id: number;
   token: string;
-
-  constructor(id: number, token: string) {
-    this.id = id;
-    this.token = token;
-  }
 }

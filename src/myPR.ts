@@ -3,9 +3,13 @@ import { PR } from "./PR";
 import { ReviewState } from "./reviewState";
 import { Settings } from "./settings";
 
-export class MyPR {
+export interface MyPrDto {
   pr: PR;
   reviewerStates: ReviewerState[];
+}
+
+export class MyPR implements MyPrDto {
+  constructor(public pr: PR, public reviewerStates: ReviewerState[]) {}
 
   // #NOT_MATURE: lazily populated in popup.ts:
   repoFullName: string;
@@ -91,11 +95,6 @@ export class MyPR {
     return new MyPR(pr, reviewerStateBuilder);
   }
 
-  constructor(pr: PR, reviewerStates: ReviewerState[]) {
-    this.pr = pr;
-    this.reviewerStates = reviewerStates;
-  }
-
   /** Returns null if no reviews requested or submitted. */
   getLastReviewSubmittedUnixMillis(): number {
     if (this.reviewerStates.length === 0) {
@@ -179,7 +178,7 @@ export class MyPR {
     }
   }
 
-  static of(v: MyPR): MyPR {
+  static fromDto(v: MyPrDto): MyPR {
     return new MyPR(v.pr, v.reviewerStates ? v.reviewerStates : []);
   }
 }

@@ -4,25 +4,21 @@ import { ReposState } from "./reposState";
 import { Settings } from "./settings";
 import { GitHubUser } from "./gitHubUser";
 import { NotMyTurnBlock } from "./notMyTurnBlock";
-import { Repo } from "./repo";
-import { RepoState } from "./repoState";
+import { Repo, RepoDto } from "./repo";
+import { RepoState, RepoStateDto } from "./repoState";
 
 const REPO_STORE_KEY = "reposStore";
 const REPO_STATE_LIST_STORE_KEY = "repoStateListStore";
 
 // Repo storage:
 
-class RepoList {
-  repos: Repo[];
-
-  constructor(repos: Repo[]) {
-    this.repos = repos;
-  }
+interface RepoList {
+  repos: RepoDto[];
 }
 
 export async function storeReposList(repos: Repo[]): Promise<RepoList> {
   console.log("Storing repos");
-  return getBucket<RepoList>(REPO_STORE_KEY, "sync").set(new RepoList(repos));
+  return getBucket<RepoList>(REPO_STORE_KEY, "sync").set({ repos });
 }
 
 export async function getMonitoringEnabledRepos(): Promise<Repo[]> {
@@ -32,28 +28,21 @@ export async function getMonitoringEnabledRepos(): Promise<Repo[]> {
 }
 
 export async function getRepos(): Promise<Repo[]> {
-  return (
-    getBucket<RepoList>(REPO_STORE_KEY, "sync")
-      .get()
-      // storage returns an Object, not a Repo...
-      .then((l) => (l && l.repos ? l.repos.map((v) => Repo.of(v)) : []))
-  );
+  return getBucket<RepoList>(REPO_STORE_KEY, "sync")
+    .get()
+    .then((l) => (l && l.repos ? l.repos.map((dto) => Repo.fromDto(dto)) : []));
 }
 
 // RepoState storage:
 
-class RepoStateList {
-  repoStateList: RepoState[];
-
-  constructor(repos: RepoState[]) {
-    this.repoStateList = repos;
-  }
+interface RepoStateListDto {
+  repoStateList: RepoStateDto[];
 }
 
 export async function storeRepoStateList(repoStateList: RepoState[]) {
-  return getBucket<RepoStateList>(REPO_STATE_LIST_STORE_KEY, "local").set(
-    new RepoStateList(repoStateList),
-  );
+  return getBucket<RepoStateListDto>(REPO_STATE_LIST_STORE_KEY, "local").set({
+    repoStateList,
+  });
 }
 
 export async function getReposState(): Promise<ReposState> {
@@ -63,16 +52,13 @@ export async function getReposState(): Promise<ReposState> {
 }
 
 export async function getRepoStateList(): Promise<RepoState[]> {
-  return (
-    getBucket<RepoStateList>(REPO_STATE_LIST_STORE_KEY, "local")
-      .get()
-      // storage returns an Object, not a Repo...
-      .then((l) => {
-        return l && l.repoStateList
-          ? l.repoStateList.map((v) => RepoState.of(v))
-          : [];
-      })
-  );
+  return getBucket<RepoStateListDto>(REPO_STATE_LIST_STORE_KEY, "local")
+    .get()
+    .then((l) => {
+      return l && l.repoStateList
+        ? l.repoStateList.map((v) => RepoState.fromDto(v))
+        : [];
+    });
 }
 
 // GitHubUser storage:
@@ -119,38 +105,27 @@ export async function deleteSettings() {
 
 export async function getSettings(): Promise<Settings> {
   const store = getBucket<Settings>("settings", "sync");
-  return (
-    store
-      .get()
-      // storage returns an Object, not Settings...
-      .then((stored) => {
-        // looks like if(!stored) does something fancy in JS for objects with a boolean
-        // property...
-        return stored === undefined
-          ? new Settings(
-              /* noPendingReviewsToBeMergeReady = */ false,
-              /* commentEqualsChangesRequested = */ false,
-            )
-          : new Settings(
-              stored.noPendingReviewsToBeMergeReady !== undefined
-                ? stored.noPendingReviewsToBeMergeReady
-                : false,
-              stored.commentEqualsChangesRequested !== undefined
-                ? stored.commentEqualsChangesRequested
-                : true,
-            );
-      })
-  );
+  return store.get().then((stored) => {
+    // looks like if(!stored) does something fancy in JS for objects with a boolean
+    // property...
+    return stored === undefined
+      ? {
+          noPendingReviewsToBeMergeReady: false,
+          commentEqualsChangesRequested: false,
+        }
+      : {
+          noPendingReviewsToBeMergeReady:
+            stored.noPendingReviewsToBeMergeReady ?? false,
+          commentEqualsChangesRequested:
+            stored.commentEqualsChangesRequested ?? true,
+        };
+  });
 }
 
 // NotMyTurnBlock storage:
 
-class NotMyTurnBlockList {
+interface NotMyTurnBlockList {
   notMyTurnBlockList: NotMyTurnBlock[];
-
-  constructor(notMyTurnBlockList: NotMyTurnBlock[]) {
-    this.notMyTurnBlockList = notMyTurnBlockList;
-  }
 }
 
 const NOT_MY_TURN_BLOCK_LIST_KEY_BASE = "notMyTurnBlockList";
@@ -187,12 +162,12 @@ function splitArray(
   let itemBuilder = [] as NotMyTurnBlock[];
   for (const block of blocks) {
     if (getBytes(itemBuilder) + getBytes([block]) > maxBytes) {
-      resultBuilder.push(new NotMyTurnBlockList(itemBuilder));
+      resultBuilder.push({ notMyTurnBlockList: itemBuilder });
       itemBuilder = [];
     }
     itemBuilder.push(block);
   }
-  resultBuilder.push(new NotMyTurnBlockList(itemBuilder));
+  resultBuilder.push({ notMyTurnBlockList: itemBuilder });
   return resultBuilder;
 }
 

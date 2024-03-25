@@ -1,55 +1,47 @@
 import { ReviewRequest } from "./reviewRequest";
 import { MyPR } from "./myPR";
 
+export class RepoSyncResultDto {
+  public requestsForMyReview?: ReviewRequest[];
+  public myPRs?: MyPR[];
+  public syncStartUnixMillis?: number;
+  public errorMsg?: string;
+}
+
 /** A successful or failed sync. */
-export class RepoSyncResult {
-  /* Undefined for a failed sync. */
-  requestsForMyReview: ReviewRequest[];
-
-  /* Undefined for a failed sync. */
-  myPRs: MyPR[];
-
-  syncStartUnixMillis: number;
-
-  /* Undefined for a successful sync. */
-  errorMsg: string;
-
+export class RepoSyncResult implements RepoSyncResultDto {
   constructor(
-    requestsForMyReview: ReviewRequest[] = undefined,
-    myPRs: MyPR[] = undefined,
-    syncStartUnixMillis: number = undefined,
-    errorMsg: string = undefined,
-  ) {
-    this.requestsForMyReview = requestsForMyReview;
-    this.myPRs = myPRs;
-    this.syncStartUnixMillis = syncStartUnixMillis;
-    this.errorMsg = errorMsg;
-  }
+    /* Undefined for a failed sync. */
+    public requestsForMyReview?: ReviewRequest[],
+    /* Undefined for a failed sync. */
+    public myPRs?: MyPR[],
+    public syncStartUnixMillis?: number,
+    /* Undefined for a successful sync. */
+    public errorMsg?: string,
+  ) {}
 
   /** Whether we treat is as still reliable data in absence of a more recent successful sync. */
   isRecent(): boolean {
     return this.syncStartUnixMillis >= Date.now() - 1000 * 60 * 5;
   }
 
-  // Probably better replaced with a dto interface. See
-  // https://stackoverflow.com/questions/34031448/typescript-typeerror-myclass-myfunction-is-not-a-function
-  static of(repoSyncResult: RepoSyncResult): RepoSyncResult {
+  static fromDto(dto: RepoSyncResultDto): RepoSyncResult {
     let requestsForMyReview = [] as ReviewRequest[];
     // The field was renamed, so it will be undefined if user has not yet synced after the extension
     // update:
-    if (repoSyncResult.requestsForMyReview) {
-      requestsForMyReview = repoSyncResult.requestsForMyReview
-        ? repoSyncResult.requestsForMyReview.map((v) => ReviewRequest.of(v))
+    if (dto.requestsForMyReview) {
+      requestsForMyReview = dto.requestsForMyReview
+        ? dto.requestsForMyReview.map((v) => ReviewRequest.of(v))
         : undefined;
     }
 
-    const myPRs = repoSyncResult.myPRs?.map((v) => MyPR.of(v)) || [];
+    const myPRs = dto.myPRs?.map((v) => MyPR.fromDto(v)) || [];
 
     return new RepoSyncResult(
       requestsForMyReview,
       myPRs,
-      repoSyncResult.syncStartUnixMillis,
-      repoSyncResult.errorMsg,
+      dto.syncStartUnixMillis,
+      dto.errorMsg,
     );
   }
 }

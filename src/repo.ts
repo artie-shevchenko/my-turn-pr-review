@@ -3,28 +3,25 @@ export enum RepoType {
   GITLAB,
 }
 
-export class Repo {
+export interface RepoDto {
   readonly type: RepoType;
   readonly owner: string;
   readonly name: string;
-  /* User setting from the Options page: */
   monitoringEnabled: boolean;
+}
 
+export class Repo implements RepoDto {
   constructor(
-    type: RepoType,
-    owner: string,
-    name: string,
-    monitoringEnabled = true,
-  ) {
-    this.type = type;
-    this.owner = owner;
-    this.name = name;
-    this.monitoringEnabled = monitoringEnabled;
-  }
+    public readonly type: RepoType,
+    public readonly owner: string,
+    public readonly name: string,
+    /* User setting from the Options page: */
+    public monitoringEnabled = true,
+  ) {}
 
   // #NOT_MATURE: maybe this should be replaced with a dto interface:
   // https://stackoverflow.com/questions/34031448/typescript-typeerror-myclass-myfunction-is-not-a-function
-  static of(repo: Repo): Repo {
+  static fromDto(repo: RepoDto): Repo {
     return new Repo(
       repo.type ? repo.type : RepoType.GITHUB,
       repo.owner,
