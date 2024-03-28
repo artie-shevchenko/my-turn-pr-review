@@ -1,5 +1,4 @@
 import { getBucket } from "@extend-chrome/storage";
-import { GitLabUser } from "./gitLabUser";
 import { ReposState } from "./reposState";
 import { Settings } from "./settings";
 import { GitHubUser } from "./gitHubUser";
@@ -20,8 +19,14 @@ class RepoList {
   }
 }
 
-export async function storeReposList(repos: Repo[]): Promise<RepoList> {
+export async function storeReposMap(
+  reposByFullName: Map<string, Repo>,
+): Promise<RepoList> {
   console.log("Storing repos");
+  const repos = [] as Repo[];
+  reposByFullName.forEach((repo: Repo) => {
+    repos.push(repo);
+  });
   return getBucket<RepoList>(REPO_STORE_KEY, "sync").set(new RepoList(repos));
 }
 
@@ -50,6 +55,17 @@ class RepoStateList {
   }
 }
 
+export async function storeRepoStateMap(
+  repoStateByFullName: Map<string, RepoState>,
+): Promise<RepoStateList> {
+  console.log("Storing repos state");
+  const repoStateList = [] as RepoState[];
+  repoStateByFullName.forEach((repoState: RepoState) => {
+    repoStateList.push(repoState);
+  });
+  return storeRepoStateList(repoStateList);
+}
+
 export async function storeRepoStateList(repoStateList: RepoState[]) {
   return getBucket<RepoStateList>(REPO_STATE_LIST_STORE_KEY, "local").set(
     new RepoStateList(repoStateList),
@@ -57,8 +73,20 @@ export async function storeRepoStateList(repoStateList: RepoState[]) {
 }
 
 export async function getReposState(): Promise<ReposState> {
+  return getRepoStateByFullName().then((repoStateMap) => {
+    return new ReposState(repoStateMap);
+  });
+}
+
+export async function getRepoStateByFullName(): Promise<
+  Map<string, RepoState>
+> {
   return getRepoStateList().then((repoStateList) => {
-    return new ReposState(repoStateList);
+    const result = new Map<string, RepoState>();
+    repoStateList.forEach((repoState) =>
+      result.set(repoState.fullName, repoState),
+    );
+    return result;
   });
 }
 
@@ -87,21 +115,6 @@ export async function storeGitHubUser(user: GitHubUser) {
 
 export async function getGitHubUser(): Promise<GitHubUser> {
   const store = getBucket<GitHubUser>("gitHubUser", "sync");
-  return store.get();
-}
-
-// GitLabUser storage:
-
-export async function storeGitLabUser(user: GitLabUser) {
-  const store = getBucket<GitLabUser>("gitLabUser", "sync");
-  if (!user) {
-    return store.clear();
-  }
-  return store.set(user);
-}
-
-export async function getGitLabUser(): Promise<GitLabUser> {
-  const store = getBucket<GitLabUser>("gitLabUser", "sync");
   return store.get();
 }
 

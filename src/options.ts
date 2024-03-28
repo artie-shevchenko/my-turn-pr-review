@@ -1,26 +1,23 @@
 import "../styles/options.scss";
-import { Repo, RepoType } from "./repo";
+import { trySync } from "./sync";
 import { SyncStatus } from "./reposState";
 import { Settings } from "./settings";
+import { RepoState } from "./repoState";
+import { Repo, RepoType } from "./repo";
 import {
   deleteSettings,
   getRepos,
   getReposState,
   getSettings,
   storeGitHubUser,
-  storeGitLabUser,
   storeNotMyTurnBlockList,
-  storeReposList,
-  storeRepoStateList,
+  storeReposMap,
+  storeRepoStateMap,
   storeSettings,
 } from "./storage";
-import { trySync } from "./sync";
 
-// TODO(29): hide gitHubRepoForm/gitLabRepoForm if there is no corresponding token
-const gitHubRepoForm = document.getElementById("gitHubRepoForm");
-const gitHubRepoListDiv = document.getElementById("gitHubRepoList");
-const gitLabRepoForm = document.getElementById("gitLabRepoForm");
-const gitLabRepoListDiv = document.getElementById("gitLabRepoList");
+const form = document.getElementById("repoForm");
+const repoListDiv = document.getElementById("repoList");
 
 showCurrentRepos();
 
@@ -39,11 +36,7 @@ async function showCurrentRepos() {
         return 0;
       });
       for (const repo of sortedRepos) {
-        if (repo.type === RepoType.GITHUB) {
-          addGitHubRepoCheckbox(repo.fullName(), repo.monitoringEnabled);
-        } else if (repo.type === RepoType.GITLAB) {
-          addGitLabRepoCheckbox(repo.fullName(), repo.monitoringEnabled);
-        }
+        addGitHubRepoCheckbox(repo.fullName(), repo.monitoringEnabled);
       }
     })
     .catch((e) => {
@@ -55,7 +48,7 @@ function addGitHubRepoCheckbox(repoFullname: string, enabled: boolean) {
   const checkbox = document.createElement("input");
   checkbox.type = "checkbox";
   checkbox.name = "gitHubReposCheckboxes";
-  checkbox.id = "gitHub:" + repoFullname;
+  checkbox.id = repoFullname;
   checkbox.checked = enabled;
 
   checkbox.addEventListener("change", () => {
@@ -64,33 +57,12 @@ function addGitHubRepoCheckbox(repoFullname: string, enabled: boolean) {
 
   const label = document.createElement("label") as HTMLLabelElement;
   label.textContent = " " + repoFullname;
-  label.htmlFor = checkbox.id;
+  label.htmlFor = repoFullname;
 
-  gitHubRepoListDiv.appendChild(checkbox);
-  gitHubRepoListDiv.appendChild(label);
+  repoListDiv.appendChild(checkbox);
+  repoListDiv.appendChild(label);
   const lineBreak = document.createElement("br");
-  gitHubRepoListDiv.appendChild(lineBreak);
-}
-
-function addGitLabRepoCheckbox(repoFullname: string, enabled: boolean) {
-  const checkbox = document.createElement("input");
-  checkbox.type = "checkbox";
-  checkbox.name = "gitLabReposCheckboxes";
-  checkbox.id = "gitLab:" + repoFullname;
-  checkbox.checked = enabled;
-
-  checkbox.addEventListener("change", () => {
-    updateReposToWatchFromCheckboxes();
-  });
-
-  const label = document.createElement("label") as HTMLLabelElement;
-  label.textContent = " " + repoFullname;
-  label.htmlFor = checkbox.id;
-
-  gitLabRepoListDiv.appendChild(checkbox);
-  gitLabRepoListDiv.appendChild(label);
-  const lineBreak = document.createElement("br");
-  gitLabRepoListDiv.appendChild(lineBreak);
+  repoListDiv.appendChild(lineBreak);
 }
 
 let updatingRepos = false;
@@ -105,27 +77,16 @@ async function updateReposToWatchFromCheckboxes() {
   const gitHubCheckBoxes = Array.from(
     document.querySelectorAll('input[name="gitHubReposCheckboxes"]'),
   ).map((e) => e as HTMLInputElement);
-  const gitLabCheckBoxes = Array.from(
-    document.querySelectorAll('input[name="gitLabReposCheckboxes"]'),
-  ).map((e) => e as HTMLInputElement);
 
-  const repoList = [] as Repo[];
+  const reposByFullName = new Map<string, Repo>();
   gitHubCheckBoxes.forEach((checkBox) => {
-    // #NOT_MATURE
-    const fullName = checkBox.id.substring("github:".length);
-    repoList.push(
-      Repo.fromFullName(fullName, RepoType.GITHUB, checkBox.checked),
+    reposByFullName.set(
+      checkBox.id,
+      Repo.fromFullName(checkBox.id, RepoType.GITHUB, checkBox.checked),
     );
   });
-  gitLabCheckBoxes.forEach((checkBox) => {
-    // #NOT_MATURE
-    const fullName = checkBox.id.substring("gitlab:".length);
-    repoList.push(
-      Repo.fromFullName(fullName, RepoType.GITLAB, checkBox.checked),
-    );
-  });
-  await storeReposList(repoList);
-  console.log("Updated repos to watch.");
+  await storeReposMap(reposByFullName);
+  console.log("Updated repos to watch:", gitHubCheckBoxes);
   updatingRepos = false;
 
   const reposState = await getReposState();
@@ -167,21 +128,18 @@ async function showSettings() {
   );
 }
 
-gitHubRepoForm.addEventListener("submit", (e) => {
+form.addEventListener("submit", (e) => {
   e.preventDefault();
-  const newRepoInput = document.getElementById(
-    "newGitHubRepo",
-  ) as HTMLInputElement;
+  const newRepoInput = document.getElementById("newRepo") as HTMLInputElement;
   const addRepoErrorDiv = document.getElementById(
-    "addGitHubRepoError",
+    "addRepoError",
   ) as HTMLInputElement;
   const addRepoSuccessDiv = document.getElementById(
-    "addGitHubRepoSuccess",
+    "addRepoSuccess",
   ) as HTMLInputElement;
   const newRepoFullName = newRepoInput.value.trim();
 
   addRepoErrorDiv.style.display = "none";
-  addRepoSuccessDiv.style.display = "none";
   addRepoErrorDiv.innerHTML = "";
 
   const repoNameRegExp = new RegExp("/", "g");
@@ -194,48 +152,8 @@ gitHubRepoForm.addEventListener("submit", (e) => {
   }
 
   console.log("Evaluating adding " + newRepoFullName);
-  if (!document.getElementById("gitHub:" + newRepoFullName)) {
+  if (document.getElementById(newRepoFullName) == undefined) {
     addGitHubRepoCheckbox(newRepoFullName, true);
-    updateReposToWatchFromCheckboxes();
-    newRepoInput.value = "";
-    addRepoSuccessDiv.style.display = "block";
-  } else {
-    addRepoErrorDiv.style.display = "block";
-    addRepoErrorDiv.innerHTML =
-      "Repository already present in the list above. Make sure it's checked.";
-    return;
-  }
-});
-
-gitLabRepoForm.addEventListener("submit", (e) => {
-  e.preventDefault();
-  const newRepoInput = document.getElementById(
-    "newGitLabRepo",
-  ) as HTMLInputElement;
-  const addRepoErrorDiv = document.getElementById(
-    "addGitLabRepoError",
-  ) as HTMLInputElement;
-  const addRepoSuccessDiv = document.getElementById(
-    "addGitLabRepoSuccess",
-  ) as HTMLInputElement;
-  const newRepoFullName = newRepoInput.value.trim();
-
-  addRepoErrorDiv.style.display = "none";
-  addRepoSuccessDiv.style.display = "none";
-  addRepoErrorDiv.innerHTML = "";
-
-  const repoNameRegExp = new RegExp("/", "g");
-  const regExpMatchArray = newRepoFullName.match(repoNameRegExp);
-  if (!regExpMatchArray || regExpMatchArray.length != 1) {
-    addRepoErrorDiv.style.display = "block";
-    addRepoErrorDiv.innerHTML =
-      "Invalid repository name. Must contain exactly one '/'.";
-    return;
-  }
-
-  console.log("Evaluating adding " + newRepoFullName);
-  if (!document.getElementById("gitLab:" + newRepoFullName)) {
-    addGitLabRepoCheckbox(newRepoFullName, true);
     updateReposToWatchFromCheckboxes();
     newRepoInput.value = "";
     addRepoSuccessDiv.style.display = "block";
@@ -260,10 +178,9 @@ document
 
     // #NOT_MATURE: use Promise.all instead:
     storeGitHubUser(null)
-      .then(() => storeGitLabUser(null))
       .then(() => deleteSettings())
-      .then(() => storeReposList([]))
-      .then(() => storeRepoStateList([]))
+      .then(() => storeReposMap(new Map<string, Repo>()))
+      .then(() => storeRepoStateMap(new Map<string, RepoState>()))
       .then(() => storeNotMyTurnBlockList([]))
       .then(() => {
         chrome.action.setIcon({

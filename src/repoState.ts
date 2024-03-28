@@ -1,23 +1,19 @@
-import { RepoType } from "./repo";
 import { SyncStatus } from "./reposState";
 import { Settings } from "./settings";
 import { NotMyTurnBlock } from "./notMyTurnBlock";
 import { RepoSyncResult } from "./repoSyncResult";
 
 export class RepoState {
-  readonly repoType: RepoType;
   readonly fullName: string;
   lastSyncResult: RepoSyncResult;
   // Undefined if there were no successful syncs.
   lastSuccessfulSyncResult: RepoSyncResult;
 
   constructor(
-    repoType: RepoType,
-    repoFullName: string,
+    repoFullName: string = undefined,
     lastSyncResult: RepoSyncResult = undefined,
     lastSuccessfulSyncResult: RepoSyncResult = undefined,
   ) {
-    this.repoType = repoType;
     this.fullName = repoFullName;
     this.lastSyncResult = lastSyncResult;
     this.lastSuccessfulSyncResult = lastSuccessfulSyncResult;
@@ -54,7 +50,6 @@ export class RepoState {
   // https://stackoverflow.com/questions/34031448/typescript-typeerror-myclass-myfunction-is-not-a-function
   static of(repoState: RepoState): RepoState {
     return new RepoState(
-      repoState.repoType ? repoState.repoType : RepoType.GITHUB,
       repoState.fullName,
       RepoSyncResult.of(repoState.lastSyncResult),
       repoState.lastSuccessfulSyncResult
