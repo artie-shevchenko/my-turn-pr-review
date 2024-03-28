@@ -1,50 +1,47 @@
 import { Octokit } from "@octokit/rest";
-import { GitLabUser } from "./gitLabUser";
-import { RepoSyncResult } from "./repoSyncResult";
-import { resetGitLabCallsCounter, syncGitLabRepo } from "./gitlab";
+import { GitHubUser } from "./gitHubUser";
 import {
   gitHubCallsCounter,
   resetGitHubCallsCounter,
   syncGitHubRepo,
 } from "./github";
-import { GitHubUser } from "./gitHubUser";
 import { NotMyTurnBlock } from "./notMyTurnBlock";
-import { Repo, RepoType } from "./repo";
+import { Repo } from "./repo";
 import { ReposState } from "./reposState";
 import { RepoState } from "./repoState";
 import {
   getGitHubUser,
-  getGitLabUser,
   getNotMyTurnBlockList,
   getRepos,
-  getReposState,
+  getRepoStateByFullName,
   storeNotMyTurnBlockList,
-  storeRepoStateList,
+  storeRepoStateMap,
 } from "./storage";
 
 export async function trySync() {
-  const gitHubUser = await getGitHubUser();
-  const gitLabUser = await getGitLabUser();
-  trySyncWithCredentials(gitHubUser, gitLabUser).catch((e) => {
-    console.error("Sync failed", e);
-  });
+  return getGitHubUser()
+    .then((gitHubUser) => {
+      trySyncWithCredentials(gitHubUser);
+    })
+    .catch((e) => {
+      console.error("Sync failed", e);
+    });
 }
 
 let syncInProgress = false;
 
 export let octokit: Octokit;
 
-export async function trySyncWithCredentials(
-  gitHubUser: GitHubUser,
-  gitLabUser: GitLabUser,
-) {
+export async function trySyncWithCredentials(gitHubUser: GitHubUser) {
   if (gitHubUser && gitHubUser.token) {
     octokit = new Octokit({
       auth: gitHubUser.token,
     });
-  }
-  if (gitLabUser && gitLabUser.token) {
-    // TODO(29): init gitLab library here?
+  } else {
+    chrome.action.setIcon({
+      path: "icons/grey128.png",
+    });
+    return;
   }
 
   if (syncInProgress) {
@@ -54,10 +51,7 @@ export async function trySyncWithCredentials(
   console.info("Starting sync...");
   syncInProgress = true;
   try {
-    await sync(
-      gitHubUser ? gitHubUser.id : undefined,
-      gitLabUser ? gitLabUser.id : undefined,
-    );
+    await sync(gitHubUser.id);
   } catch (e) {
     chrome.action.setIcon({
       path: "icons/grey128.png",
@@ -72,68 +66,33 @@ let syncStartUnixMillis = 0;
 
 /**
  * Note: no concurrent calls!
- *
- * @param myGitHubUserId if GitHub token provided and valid should be present.
- * @param myGitLabUserId if GitLab token provided and valid should be present.
  */
-export async function sync(myGitHubUserId: number, myGitLabUserId: number) {
+export async function sync(myGitHubUserId: number) {
   const blocksAtSyncStart = await getNotMyTurnBlockList();
 
   // #NOT_MATURE: what if it manages to exceed the quota in a single sync?
   await throttleGitHub();
 
   resetGitHubCallsCounter();
-  resetGitLabCallsCounter();
   syncStartUnixMillis = Date.now();
   const allReposIncludingDisabled = await getRepos();
   const repos = allReposIncludingDisabled.filter((v) => v.monitoringEnabled);
-  const prevReposState = await getReposState();
-  const repoStateListBuilder = [] as RepoState[];
+  const prevRepoStateByFullName = await getRepoStateByFullName();
+  const repoStateByFullNameBuilder = new Map<string, RepoState>();
   // It's probably better to do these GitHub requests in a sequential manner so that GitHub is not
   // tempted to block them even if user monitors many repos:
   for (const repo of repos) {
-    let repoState = prevReposState.getState(repo);
+    let repoState = prevRepoStateByFullName.get(repo.fullName());
     if (!repoState) {
-      repoState = new RepoState(repo.type, repo.fullName());
+      repoState = new RepoState(repo.fullName());
     }
-    repoStateListBuilder.push(repoState);
-    if (repo.type === RepoType.GITHUB) {
-      if (myGitHubUserId) {
-        await syncGitHubRepo(repoState, myGitHubUserId);
-      } else {
-        repoState.lastSyncResult = new RepoSyncResult(
-          [],
-          [],
-          Date.now(),
-          "No valid GitHub token",
-        );
-        chrome.action.setIcon({
-          path: "icons/grey128.png",
-        });
-      }
-    } else if (repo.type === RepoType.GITLAB) {
-      // #NOT_MATURE: can sync GitLab in parallel with GitHub as throttling is per-service:
-      if (myGitLabUserId) {
-        await syncGitLabRepo(repoState, myGitLabUserId);
-      } else {
-        repoState.lastSyncResult = new RepoSyncResult(
-          [],
-          [],
-          Date.now(),
-          "No valid GitLab token",
-        );
-        chrome.action.setIcon({
-          path: "icons/grey128.png",
-        });
-      }
-    } else {
-      // TODO: throw unsupported type.
-    }
+    repoStateByFullNameBuilder.set(repo.fullName(), repoState);
+    await syncGitHubRepo(repoState, myGitHubUserId);
   }
-  const reposState = new ReposState(repoStateListBuilder);
+  const reposState = new ReposState(repoStateByFullNameBuilder);
 
   // Update in background:
-  storeRepoStateList(repoStateListBuilder);
+  storeRepoStateMap(repoStateByFullNameBuilder);
 
   const blocksNow = await getNotMyTurnBlockList();
   if (blocksNow.length == blocksAtSyncStart.length) {

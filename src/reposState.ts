@@ -16,10 +16,10 @@ export enum SyncStatus {
 }
 
 export class ReposState {
-  repoStateList: RepoState[];
+  repoStateByFullName: Map<string, RepoState>;
 
-  constructor(repoStateList: RepoState[]) {
-    this.repoStateList = repoStateList;
+  constructor(repoStateByFullName: Map<string, RepoState>) {
+    this.repoStateByFullName = repoStateByFullName;
   }
 
   async updateIcon(
@@ -38,7 +38,7 @@ export class ReposState {
     }
     let syncStatus = SyncStatus.Green;
     for (const repo of monitoringEnabledRepos) {
-      const repoState = this.getState(repo);
+      const repoState = this.repoStateByFullName.get(repo.fullName());
       if (!repoState || !repoState.hasRecentSuccessfulSync()) {
         syncStatus = SyncStatus.Grey;
         break;
@@ -66,17 +66,6 @@ export class ReposState {
   }
 
   asArray() {
-    return this.repoStateList;
-  }
-
-  getState(repo: Repo) {
-    const matchingRepoStates = this.repoStateList.filter(
-      (v) => v.fullName === repo.fullName() && v.repoType === repo.type,
-    );
-    if (matchingRepoStates.length === 0) {
-      return undefined;
-    }
-    // TODO: assert matchingRepoStates.length === 1
-    return matchingRepoStates[0];
+    return [...this.repoStateByFullName.values()];
   }
 }
