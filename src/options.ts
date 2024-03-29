@@ -26,6 +26,11 @@ showSettings();
 async function showCurrentRepos() {
   getRepos()
     .then((repos) => {
+      if (repos.length === 0) {
+        document.getElementById("chooseGitHubRepo").style.display = "none";
+        document.getElementById("addNewGitHubRepoToList").innerHTML =
+          "Add a GitHub repository to monitor:";
+      }
       const sortedRepos = repos.sort(function (a, b) {
         if (a.fullName() < b.fullName()) {
           return -1;
@@ -45,6 +50,10 @@ async function showCurrentRepos() {
 }
 
 function addGitHubRepoCheckbox(repoFullname: string, enabled: boolean) {
+  document.getElementById("chooseGitHubRepo").style.display = "block";
+  document.getElementById("addNewGitHubRepoToList").innerHTML =
+    "Add another GitHub repository:";
+
   const checkbox = document.createElement("input");
   checkbox.type = "checkbox";
   checkbox.name = "gitHubReposCheckboxes";
@@ -145,6 +154,7 @@ form.addEventListener("submit", (e) => {
   const repoNameRegExp = new RegExp("/", "g");
   const regExpMatchArray = newRepoFullName.match(repoNameRegExp);
   if (!regExpMatchArray || regExpMatchArray.length != 1) {
+    addRepoSuccessDiv.style.display = "none";
     addRepoErrorDiv.style.display = "block";
     addRepoErrorDiv.innerHTML =
       "Invalid repository name. Must contain exactly one '/'.";
@@ -158,6 +168,7 @@ form.addEventListener("submit", (e) => {
     newRepoInput.value = "";
     addRepoSuccessDiv.style.display = "block";
   } else {
+    addRepoSuccessDiv.style.display = "none";
     addRepoErrorDiv.style.display = "block";
     addRepoErrorDiv.innerHTML =
       "Repository already present in the list above. Make sure it's checked.";
