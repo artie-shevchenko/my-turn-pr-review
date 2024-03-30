@@ -28,8 +28,12 @@ async function showCurrentRepos() {
     .then((repos) => {
       if (repos.length === 0) {
         document.getElementById("chooseGitHubRepo").style.display = "none";
-        document.getElementById("addNewGitHubRepoToList").innerHTML =
+        const addNewGitHubRepoToList = document.getElementById(
+          "addNewGitHubRepoToList",
+        );
+        addNewGitHubRepoToList.innerHTML =
           "Add a GitHub repository to monitor:";
+        addNewGitHubRepoToList.style.color = "yellow";
       }
       const sortedRepos = repos.sort(function (a, b) {
         if (a.fullName() < b.fullName()) {
@@ -51,8 +55,11 @@ async function showCurrentRepos() {
 
 function addGitHubRepoCheckbox(repoFullname: string, enabled: boolean) {
   document.getElementById("chooseGitHubRepo").style.display = "block";
-  document.getElementById("addNewGitHubRepoToList").innerHTML =
-    "Add another GitHub repository:";
+  const addNewGitHubRepoToList = document.getElementById(
+    "addNewGitHubRepoToList",
+  );
+  addNewGitHubRepoToList.innerHTML = "Add another GitHub repository:";
+  addNewGitHubRepoToList.style.color = "white";
 
   const checkbox = document.createElement("input");
   checkbox.type = "checkbox";
