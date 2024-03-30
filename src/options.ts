@@ -171,7 +171,7 @@ form.addEventListener("submit", (e) => {
     addRepoSuccessDiv.style.display = "none";
     addRepoErrorDiv.style.display = "block";
     addRepoErrorDiv.innerHTML =
-      "Repository already present in the list above. Make sure it's checked.";
+      "Repository already present in the list above. Make sure the corresponding checkbox is checked.";
     return;
   }
 });
