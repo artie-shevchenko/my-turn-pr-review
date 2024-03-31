@@ -12,7 +12,7 @@
     2. Enable the `Developer mode`
     3. Click on `Load unpacked`
     4. Choose the `dist` directory
-5. You are good to go! You can also pin the extension to the toolbar for easy access.
+5. You are good to go!
 
 ### Project structure
 
