@@ -2,13 +2,15 @@ import "../styles/popup.scss";
 import { Octokit } from "@octokit/rest";
 import { trySyncWithCredentials } from "./sync";
 import { GitHubUser } from "./gitHubUser";
-import { NotMyTurnBlock } from "./notMyTurnBlock";
+import { CommentBlock, NotMyTurnBlock } from "./notMyTurnBlock";
 import { Repo } from "./repo";
 import { RepoState } from "./repoState";
 import { ReviewState } from "./reviewState";
 import { Settings } from "./settings";
 import {
+  addCommentBlock,
   addNotMyTurnBlock,
+  getCommentBlockList,
   getGitHubUser,
   getMonitoringEnabledRepos,
   getNotMyTurnBlockList,
@@ -37,7 +39,7 @@ document.getElementById("tokenForm").addEventListener("submit", (e) => {
     .then((v) => {
       const userId = v.data.id;
       console.log("GitHub user ID: " + userId);
-      const gitHubUser = new GitHubUser(userId, newToken);
+      const gitHubUser = new GitHubUser(userId, v.data.login, newToken);
       const result = storeGitHubUser(gitHubUser);
       // trigger sync:
       trySyncWithCredentials(gitHubUser);
@@ -119,9 +121,15 @@ function showError(e: Error) {
 async function updatePopupPage() {
   const reposState = await getReposState();
   const repos: Repo[] = await getMonitoringEnabledRepos();
-  const notMyTurnBlocks = await getNotMyTurnBlockList();
+  const notMyTurnPrBlocks = await getNotMyTurnBlockList();
+  const commentBlocks = await getCommentBlockList();
   const settings = await getSettings();
-  await reposState.updateIcon(repos, notMyTurnBlocks, settings);
+  await reposState.updateIcon(
+    repos,
+    notMyTurnPrBlocks,
+    commentBlocks,
+    settings,
+  );
 
   const repoStateByFullName = reposState.repoStateByFullName;
   const syncSuccessRepos = repos
@@ -163,7 +171,8 @@ async function updatePopupPage() {
     syncSuccessRepos,
     syncFailureRepos,
     unsyncedRepos,
-    notMyTurnBlocks,
+    notMyTurnPrBlocks,
+    commentBlocks,
     settings,
   );
 }
@@ -195,6 +204,7 @@ async function populateFromState(
   syncFailureRepos: RepoState[],
   unsyncedRepos: Repo[],
   notMyTurnBlocks: NotMyTurnBlock[],
+  commentBlocks: CommentBlock[],
   settings: Settings,
 ) {
   const repoWarnSection = document.getElementById("repoWarn");
@@ -291,17 +301,55 @@ async function populateFromState(
         return v;
       });
     })
-    .filter((pr) => pr.isMyTurn(notMyTurnBlocks, settings));
+    .filter((pr) => pr.isMyTurn(notMyTurnBlocks, settings))
+    .sort((a, b) => {
+      if (a.repoFullName === b.repoFullName) {
+        return a.pr.name.localeCompare(b.pr.name);
+      } else {
+        return a.repoFullName.localeCompare(b.repoFullName);
+      }
+    });
+
+  const comments = syncSuccessRepos
+    .flatMap((repo) => {
+      return repo.lastSuccessfulSyncResult.comments.map((v) => {
+        v.repoFullName = repo.fullName;
+        return v;
+      });
+    })
+    .filter((comment) => comment.isMyTurn(settings, commentBlocks))
+    .sort((a, b) => {
+      if (a.repoFullName === b.repoFullName) {
+        return a.pr.name.localeCompare(b.pr.name);
+      } else {
+        return a.repoFullName.localeCompare(b.repoFullName);
+      }
+    });
 
   const reviewRequestedTable = document.getElementById(
     "myReviewRequestedPrTable",
   ) as HTMLTableElement;
   deleteAllRows(reviewRequestedTable);
+
   reviewRequestedTable.style.display =
     requestsForMyReviews.length == 0 ? "none" : "";
   const myPRsTable = document.getElementById("myPrTable") as HTMLTableElement;
   myPRsTable.style.display = myPRs.length == 0 ? "none" : "";
   deleteAllRows(myPRsTable);
+
+  const repliesAndMentions = document.getElementById("repliesAndMentions");
+  if (settings.ignoreCommentsMoreThanXDaysOld === 0) {
+    repliesAndMentions.style.display = "none";
+  }
+
+  const commentsTable = document.getElementById(
+    "commentsTable",
+  ) as HTMLTableElement;
+  commentsTable.style.display =
+    settings.ignoreCommentsMoreThanXDaysOld === 0 || comments.length == 0
+      ? "none"
+      : "";
+  deleteAllRows(commentsTable);
 
   // Iterate over the requestsForMyReviews array and create rows for each entry
   for (let i = 0; i < requestsForMyReviews.length; i++) {
@@ -328,10 +376,10 @@ async function populateFromState(
   }
 
   // Iterate over the myPRs array and create rows for each entry
-  for (let i = 0, rowIndex = 0; i < myPRs.length; i++) {
+  for (let i = 0; i < myPRs.length; i++) {
     const myPR = myPRs[i];
 
-    const row = myPRsTable.insertRow(rowIndex + 1); // Insert rows starting from index 1
+    const row = myPRsTable.insertRow(i + 1); // Insert rows starting from index 1
     row.id = "myPrRow" + i;
 
     const repoCell = row.insertCell(0);
@@ -382,6 +430,7 @@ async function populateFromState(
 
     const notMyTurnCell = row.insertCell(3);
     notMyTurnCell.align = "center";
+    notMyTurnCell.className = "notMyTurnColumn";
     notMyTurnCell.innerHTML =
       '<img src="icons/xMark16.png" style="cursor: pointer; width: 12px;" id="notMyTurn' +
       i +
@@ -404,9 +453,49 @@ async function populateFromState(
     });
   }
 
-  function deleteAllRows(htmlTableElement: HTMLTableElement) {
-    while (htmlTableElement.rows.length > 1) {
-      htmlTableElement.deleteRow(1);
+  // Iterate over the comments array and create rows for each entry
+  for (let i = 0; i < comments.length; i++) {
+    const comment = comments[i];
+
+    const row = commentsTable.insertRow(i + 1); // Insert rows starting from index 1
+    row.id = "myPrRow" + i;
+
+    const repoCell = row.insertCell(0);
+    repoCell.innerHTML = comment.repoFullName;
+    repoCell.className = "repoColumn";
+    const prCell = row.insertCell(1);
+    prCell.innerHTML = comment.pr.name;
+    const authorCell = row.insertCell(2);
+    authorCell.innerHTML = "@" + comment.authorLogin;
+    authorCell.className = "userColumn";
+    const commentCell = row.insertCell(3);
+    let text = comment.body;
+    if (text.length > 50) {
+      text = text.substring(0, 50) + "...";
     }
+    text = '"' + text + '"';
+    commentCell.innerHTML =
+      "<a href = '" + comment.url + "' target='_blank'>" + text + "</a>";
+
+    const notMyTurnCell = row.insertCell(4);
+    notMyTurnCell.align = "center";
+    notMyTurnCell.className = "notMyTurnColumn";
+    notMyTurnCell.innerHTML =
+      '<img src="icons/xMark16.png" style="cursor: pointer; width: 12px;" id="blockComment' +
+      i +
+      '" alt="Not my turn" title="Not my turn"/>';
+    document
+      .getElementById("blockComment" + i)
+      .addEventListener("click", () => {
+        addCommentBlock(new CommentBlock(comment.url)).then(() =>
+          updatePopupPage(),
+        );
+      });
+  }
+}
+
+function deleteAllRows(htmlTableElement: HTMLTableElement) {
+  while (htmlTableElement.rows.length > 1) {
+    htmlTableElement.deleteRow(1);
   }
 }

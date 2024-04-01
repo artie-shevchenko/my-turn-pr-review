@@ -1,8 +1,9 @@
-import { NotMyTurnBlock } from "./notMyTurnBlock";
+import { CommentBlock, NotMyTurnBlock } from "./notMyTurnBlock";
 import { Repo } from "./repo";
 import { RepoState } from "./repoState";
 import { Settings } from "./settings";
 import {
+  getCommentBlockList,
   getMonitoringEnabledRepos,
   getNotMyTurnBlockList,
   getSettings,
@@ -25,6 +26,7 @@ export class ReposState {
   async updateIcon(
     monitoringEnabledRepos: Repo[] = undefined,
     notMyTurnBlocks: NotMyTurnBlock[] = undefined,
+    commentBlocks: CommentBlock[] = undefined,
     settings: Settings = undefined,
   ): Promise<SyncStatus> {
     if (!monitoringEnabledRepos) {
@@ -32,6 +34,9 @@ export class ReposState {
     }
     if (!notMyTurnBlocks) {
       notMyTurnBlocks = await getNotMyTurnBlockList();
+    }
+    if (!commentBlocks) {
+      commentBlocks = await getCommentBlockList();
     }
     if (!settings) {
       settings = await getSettings();
@@ -43,9 +48,18 @@ export class ReposState {
         syncStatus = SyncStatus.Grey;
         break;
       }
+
+      if (
+        settings.ignoreCommentsMoreThanXDaysOld >
+        repoState.lastSuccessfulSyncResult.ignoredCommentsMoreThanXDaysOld
+      ) {
+        syncStatus = SyncStatus.Grey;
+        break;
+      }
+
       syncStatus = Math.max(
         syncStatus,
-        repoState.getSyncStatus(notMyTurnBlocks, settings),
+        repoState.getSyncStatus(notMyTurnBlocks, commentBlocks, settings),
       );
     }
 

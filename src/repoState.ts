@@ -1,6 +1,6 @@
 import { SyncStatus } from "./reposState";
 import { Settings } from "./settings";
-import { NotMyTurnBlock } from "./notMyTurnBlock";
+import { CommentBlock, NotMyTurnBlock } from "./notMyTurnBlock";
 import { RepoSyncResult } from "./repoSyncResult";
 
 export class RepoState {
@@ -21,6 +21,7 @@ export class RepoState {
 
   getSyncStatus(
     notMyTurnBlocks: NotMyTurnBlock[],
+    commentBlocks: CommentBlock[],
     settings: Settings,
   ): SyncStatus {
     if (!this.hasRecentSuccessfulSync()) {
@@ -37,7 +38,19 @@ export class RepoState {
     )
       ? SyncStatus.Yellow
       : SyncStatus.Green;
-    return Math.max(requestsForMyReviewStatus, myPRsStatus);
+    // Yellow max based on myPRs. TODO(36): make it user-configurable:
+    let commentsStatus;
+    if (settings.ignoreCommentsMoreThanXDaysOld > 0) {
+      commentsStatus =
+        this.lastSuccessfulSyncResult.comments.filter((c) =>
+          c.isMyTurn(settings, commentBlocks),
+        ).length > 0
+          ? SyncStatus.Yellow
+          : SyncStatus.Green;
+    } else {
+      commentsStatus = SyncStatus.Green;
+    }
+    return Math.max(requestsForMyReviewStatus, myPRsStatus, commentsStatus);
   }
 
   hasRecentSuccessfulSync(): boolean {

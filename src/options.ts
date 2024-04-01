@@ -1,20 +1,21 @@
 import "../styles/options.scss";
-import { trySync } from "./sync";
-import { SyncStatus } from "./reposState";
-import { Settings } from "./settings";
-import { RepoState } from "./repoState";
 import { Repo, RepoType } from "./repo";
+import { SyncStatus } from "./reposState";
+import { RepoState } from "./repoState";
+import { Settings } from "./settings";
 import {
   deleteSettings,
   getRepos,
   getReposState,
   getSettings,
+  storeCommentBlockList,
   storeGitHubUser,
   storeNotMyTurnBlockList,
   storeReposMap,
   storeRepoStateMap,
   storeSettings,
 } from "./storage";
+import { trySync } from "./sync";
 
 const form = document.getElementById("repoForm");
 const repoListDiv = document.getElementById("repoList");
@@ -108,7 +109,7 @@ async function updateReposToWatchFromCheckboxes() {
   const reposState = await getReposState();
   const syncStatus = await reposState.updateIcon();
   if (syncStatus === SyncStatus.Grey) {
-    console.log("Triggering sync as there are new repos added.");
+    console.log("Triggering sync as repo set / settings have changed.");
     trySync();
   }
 }
@@ -125,22 +126,39 @@ async function showSettings() {
   ) as HTMLInputElement;
   commentEqualsChangesRequestedCheckbox.checked =
     settings.commentEqualsChangesRequested;
+  const ignoreCommentsMoreThanXDaysOldInput = document.getElementById(
+    "ignoreCommentsMoreThanXDaysOldSetting",
+  ) as HTMLInputElement;
+  ignoreCommentsMoreThanXDaysOldInput.value =
+    settings.ignoreCommentsMoreThanXDaysOld.toString();
 
-  const triggerStoreSettings = () => {
+  const storeUISettings = async () => {
     storeSettings(
       new Settings(
         ignoreMyPRsWithPendingReviewsCheckbox.checked,
         commentEqualsChangesRequestedCheckbox.checked,
+        ignoreCommentsMoreThanXDaysOldInput.value.trim().length === 0
+          ? 0
+          : Number.parseInt(ignoreCommentsMoreThanXDaysOldInput.value),
       ),
     );
   };
   ignoreMyPRsWithPendingReviewsCheckbox.addEventListener(
     "change",
-    triggerStoreSettings,
+    storeUISettings,
   );
   commentEqualsChangesRequestedCheckbox.addEventListener(
     "change",
-    triggerStoreSettings,
+    storeUISettings,
+  );
+  ignoreCommentsMoreThanXDaysOldInput.addEventListener(
+    "change",
+    async function () {
+      await storeUISettings();
+      const reposState = await getReposState();
+      await reposState.updateIcon();
+      // Probably better not to trigger sync not to be throttled for GitHub notification API call.
+    },
   );
 }
 
@@ -200,6 +218,7 @@ document
       .then(() => storeReposMap(new Map<string, Repo>()))
       .then(() => storeRepoStateMap(new Map<string, RepoState>()))
       .then(() => storeNotMyTurnBlockList([]))
+      .then(() => storeCommentBlockList([]))
       .then(() => {
         chrome.action.setIcon({
           path: "icons/grey128.png",

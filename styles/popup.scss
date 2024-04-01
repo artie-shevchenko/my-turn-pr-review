@@ -35,12 +35,20 @@ td {
   width: 20%;
   word-wrap:break-word;
 }
+.notMyTurnColumn {
+  width: 42px;
+}
 .theirPrTitleColumn {
   width: 60%;
 }
 .myPrTitleColumn {
   width: 60%;
 }
+.userColumn {
+  width: 10%;
+  word-wrap:break-word;
+}
+
 .footnotes {
   font-size: smaller;
 }
