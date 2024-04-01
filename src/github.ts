@@ -48,12 +48,25 @@ type PullsListCommentsResponseType = GetResponseTypeFromEndpointMethod<
 type PullsListCommentsResponseDataType = GetResponseDataTypeFromEndpointMethod<
   typeof octokit.pulls.listReviewComments
 >;
+type IssuesListCommentsResponseType = GetResponseTypeFromEndpointMethod<
+  typeof octokit.issues.listComments
+>;
+type IssuesListCommentsResponseDataType = GetResponseDataTypeFromEndpointMethod<
+  typeof octokit.issues.listComments
+>;
 type PullsListReactionsResponseType = GetResponseTypeFromEndpointMethod<
   typeof octokit.reactions.listForPullRequestReviewComment
 >;
 type PullsListReactionsResponseDataType = GetResponseDataTypeFromEndpointMethod<
   typeof octokit.reactions.listForPullRequestReviewComment
 >;
+type IssuesListReactionsResponseType = GetResponseTypeFromEndpointMethod<
+  typeof octokit.reactions.listForIssueComment
+>;
+type IssuesListReactionsResponseDataType =
+  GetResponseDataTypeFromEndpointMethod<
+    typeof octokit.reactions.listForIssueComment
+  >;
 
 export let gitHubCallsCounter = 0;
 
@@ -154,14 +167,16 @@ export async function syncGitHubRepo(
           if (comment.user.id === myGitHubUser.id) {
             // I already responded:
             commentMakingItMyTurn = undefined;
-          } else {
-            if (
-              iCommentedOnThread ||
-              comment.body.indexOf("@" + myGitHubUser.login) >= 0
-            ) {
-              // check if there are any reactions from my side is made later:
-              commentMakingItMyTurn = comment;
-            }
+            continue;
+          }
+
+          if (
+            iCommentedOnThread ||
+            // #NOT_MATURE: should be followed by " " or tab etc
+            comment.body.indexOf("@" + myGitHubUser.login) >= 0
+          ) {
+            // check if there are any reactions from my side is made later:
+            commentMakingItMyTurn = comment;
           }
         }
         if (commentMakingItMyTurn) {
@@ -182,6 +197,50 @@ export async function syncGitHubRepo(
               ),
             );
           }
+        }
+      }
+      const issueCommentsSortedByCreatedAtAsc =
+        await getIssueCommentsSortedByCreatedAtAsc(
+          notification.repository.owner.login,
+          notification.repository.name,
+          prNumber,
+        );
+      let commentMakingItMyTurn: IssuesListCommentsResponseDataType[0];
+      for (const comment of issueCommentsSortedByCreatedAtAsc) {
+        if (new Date(comment.created_at) < settings.getMinCommentCreateDate()) {
+          continue;
+        }
+
+        if (comment.user.id === myGitHubUser.id) {
+          // I already responded:
+          commentMakingItMyTurn = undefined;
+          continue;
+        }
+
+        // Only mentions supported for issue comments (as there are often tons of spam from
+        // automation): #NOT_MATURE: should be followed by " " or tab etc
+        if (comment.body.indexOf("@" + myGitHubUser.login) >= 0) {
+          // check if there are any reactions from my side is made later:
+          commentMakingItMyTurn = comment;
+        }
+      }
+      if (commentMakingItMyTurn) {
+        const reactions = await listIssueCommentReactions(
+          notification.repository.owner.login,
+          notification.repository.name,
+          commentMakingItMyTurn.id,
+        );
+        if (!reactions.some((r) => r.user.id === myGitHubUser.id)) {
+          // I haven't reacted to it:
+          commentsBuilder.push(
+            new Comment(
+              commentMakingItMyTurn.html_url,
+              new PR(prUrl, notification.subject.title),
+              commentMakingItMyTurn.body,
+              commentMakingItMyTurn.user.login,
+              new Date(commentMakingItMyTurn.created_at).getTime(),
+            ),
+          );
         }
       }
     }
@@ -603,6 +662,134 @@ async function listPullCommentReactionsPage(
       throw e;
     } else {
       return await listPullCommentReactionsPage(
+        repoOwner,
+        repoName,
+        commentId,
+        pageNumber,
+        retryNumber + 1,
+      );
+    }
+  }
+}
+
+/** In each thread comments are ordered by their created_at date. */
+export async function getIssueCommentsSortedByCreatedAtAsc(
+  repoOwner: string,
+  repoName: string,
+  issueNumber: number,
+): Promise<IssuesListCommentsResponseDataType[0][]> {
+  const resultBuilder = [] as IssuesListCommentsResponseDataType[0][];
+  let pageNumber = 1;
+  let response: IssuesListCommentsResponseType;
+  do {
+    response = await listIssueCommentsPageOrderedByIdAsc(
+      repoOwner,
+      repoName,
+      issueNumber,
+      pageNumber,
+    );
+    for (const arrayElement of response.data) {
+      resultBuilder.push(arrayElement);
+    }
+    pageNumber++;
+  } while (response.data.length > 0);
+
+  return resultBuilder;
+}
+
+async function listIssueCommentsPageOrderedByIdAsc(
+  repoOwner: string,
+  repoName: string,
+  issueNumber: number,
+  pageNumber: number,
+  retryNumber = 0,
+): Promise<IssuesListCommentsResponseType> {
+  try {
+    if (retryNumber > 0) {
+      // exponential backoff:
+      await delay(1000 * Math.pow(2, retryNumber - 1));
+    }
+    gitHubCallsCounter++;
+    return await octokit.issues.listComments({
+      owner: repoOwner,
+      repo: repoName,
+      issue_number: issueNumber,
+      page: pageNumber,
+      headers: {
+        "X-GitHub-Api-Version": "2022-11-28",
+        // no caching:
+        "If-None-Match": "",
+      },
+    });
+  } catch (e) {
+    if (retryNumber > 2) {
+      console.error("The maximum number of retries reached");
+      throw e;
+    } else {
+      return await listIssueCommentsPageOrderedByIdAsc(
+        repoOwner,
+        repoName,
+        issueNumber,
+        pageNumber,
+        retryNumber + 1,
+      );
+    }
+  }
+}
+
+async function listIssueCommentReactions(
+  repoOwner: string,
+  repoName: string,
+  commentId: number,
+): Promise<IssuesListReactionsResponseDataType[0][]> {
+  const result = [];
+  let pageNumber = 1;
+  let response: IssuesListReactionsResponseType;
+  do {
+    response = await listIssueCommentReactionsPage(
+      repoOwner,
+      repoName,
+      commentId,
+      pageNumber,
+    );
+    for (const arrayElement of response.data) {
+      result.push(arrayElement as IssuesListReactionsResponseDataType[0]);
+    }
+    pageNumber++;
+  } while (response.data.length > 0);
+  return result;
+}
+
+async function listIssueCommentReactionsPage(
+  repoOwner: string,
+  repoName: string,
+  commentId: number,
+  pageNumber: number,
+  retryNumber = 0,
+): Promise<IssuesListReactionsResponseType> {
+  try {
+    if (retryNumber > 0) {
+      // exponential backoff:
+      await delay(1000 * Math.pow(2, retryNumber - 1));
+    }
+    gitHubCallsCounter++;
+    return await octokit.reactions.listForIssueComment({
+      owner: repoOwner,
+      repo: repoName,
+      comment_id: commentId,
+      page: pageNumber,
+      headers: {
+        "X-GitHub-Api-Version": "2022-11-28",
+        // no caching:
+        "If-None-Match": "",
+      },
+    });
+  } catch (e) {
+    if (retryNumber > 2) {
+      console.error("The maximum number of retries reached");
+      throw e;
+    } else {
+      return await listIssueCommentReactionsPage(
         repoOwner,
         repoName,
         commentId,
