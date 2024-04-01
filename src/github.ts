@@ -2,6 +2,9 @@ import {
   GetResponseDataTypeFromEndpointMethod,
   GetResponseTypeFromEndpointMethod,
 } from "@octokit/types";
+import { Settings } from "./settings";
+import { Comment } from "./comment";
+import { GitHubUser } from "./gitHubUser";
 import { MyPR, ReviewOnMyPR, ReviewRequestOnMyPR } from "./myPR";
 import { PR } from "./PR";
 import { Repo, RepoType } from "./repo";
@@ -33,6 +36,24 @@ type IssuesListEventsResponseType = GetResponseTypeFromEndpointMethod<
 type IssuesListEventsResponseDataType = GetResponseDataTypeFromEndpointMethod<
   typeof octokit.issues.listEvents
 >;
+type ListNotificationsResponseType = GetResponseTypeFromEndpointMethod<
+  typeof octokit.activity.listNotificationsForAuthenticatedUser
+>;
+type ListNotificationsResponseDataType = GetResponseDataTypeFromEndpointMethod<
+  typeof octokit.activity.listNotificationsForAuthenticatedUser
+>;
+type PullsListCommentsResponseType = GetResponseTypeFromEndpointMethod<
+  typeof octokit.pulls.listReviewComments
+>;
+type PullsListCommentsResponseDataType = GetResponseDataTypeFromEndpointMethod<
+  typeof octokit.pulls.listReviewComments
+>;
+type PullsListReactionsResponseType = GetResponseTypeFromEndpointMethod<
+  typeof octokit.reactions.listForPullRequestReviewComment
+>;
+type PullsListReactionsResponseDataType = GetResponseDataTypeFromEndpointMethod<
+  typeof octokit.reactions.listForPullRequestReviewComment
+>;
 
 export let gitHubCallsCounter = 0;
 
@@ -45,9 +66,16 @@ export function resetGitHubCallsCounter() {
  *
  * @param repo The repo state will be updated as a result of the call.
  */
-export async function syncGitHubRepo(repo: RepoState, myGitHubUserId: number) {
+export async function syncGitHubRepo(
+  repo: RepoState,
+  recentNotifications: ListNotificationsResponseDataType[0][],
+  myGitHubUser: GitHubUser,
+  settings: Settings,
+) {
   const repoSyncResult = new RepoSyncResult();
   repoSyncResult.syncStartUnixMillis = Date.now();
+  repoSyncResult.ignoredCommentsMoreThanXDaysOld =
+    settings.ignoreCommentsMoreThanXDaysOld;
   const requestsForMyReviewBuilder = [] as ReviewRequest[];
   const myPRsToSyncBuilder = [] as PullsListResponseDataType[0][];
 
@@ -58,16 +86,16 @@ export async function syncGitHubRepo(repo: RepoState, myGitHubUserId: number) {
       pullsListResponse = await listPullRequests(repo, pageNumber);
       for (const arrayElement of pullsListResponse.data) {
         const pr = arrayElement as PullsListResponseDataType[0];
-        if (pr.user.id == myGitHubUserId) {
+        if (pr.user.id == myGitHubUser.id) {
           myPRsToSyncBuilder.push(pr);
         } else {
           // Somebody else's PR
           for (const reviewer of pr.requested_reviewers) {
-            if (reviewer.id === myGitHubUserId) {
+            if (reviewer.id === myGitHubUser.id) {
               const reviewRequest = await syncRequestForMyReview(
                 pr,
                 repo,
-                myGitHubUserId,
+                myGitHubUser.id,
               );
               requestsForMyReviewBuilder.push(reviewRequest);
             }
@@ -80,6 +108,8 @@ export async function syncGitHubRepo(repo: RepoState, myGitHubUserId: number) {
     // (correctly) ignored:
     repoSyncResult.requestsForMyReview = requestsForMyReviewBuilder;
 
+    // Sync my PRs:
+
     const myPRsBuilder = [] as MyPR[];
     for (const pr of myPRsToSyncBuilder) {
       const myPR = await syncMyPR(pr, repo);
@@ -87,13 +117,80 @@ export async function syncGitHubRepo(repo: RepoState, myGitHubUserId: number) {
     }
     repoSyncResult.myPRs = myPRsBuilder;
 
+    // Sync comments:
+
+    const commentsBuilder = [] as Comment[];
+    for (const notification of recentNotifications) {
+      if (notification.subject.type !== "PullRequest") {
+        continue;
+      }
+      const prUrl = notification.subject.url;
+      const prNumber = Number.parseInt(
+        prUrl.substring(prUrl.lastIndexOf("/") + 1),
+      );
+      const pullCommentsGroupedByIdOfFirstCommentInThread =
+        await getPullCommentsGroupedByIdOfFirstCommentInThread(
+          notification.repository.owner.login,
+          notification.repository.name,
+          prNumber,
+        );
+      for (const [
+        ,
+        commentsThread,
+      ] of pullCommentsGroupedByIdOfFirstCommentInThread) {
+        let iCommentedOnThread = false;
+        let commentMakingItMyTurn: PullsListCommentsResponseDataType[0];
+        for (const comment of commentsThread) {
+          if (comment.user.id === myGitHubUser.id) {
+            iCommentedOnThread = true;
+          }
+
+          if (
+            new Date(comment.created_at) < settings.getMinCommentCreateDate()
+          ) {
+            continue;
+          }
+
+          if (comment.user.id === myGitHubUser.id) {
+            // I already responded:
+            commentMakingItMyTurn = undefined;
+          } else {
+            if (
+              iCommentedOnThread ||
+              comment.body.indexOf("@" + myGitHubUser.login) >= 0
+            ) {
+              // check if there are any reactions from my side is made later:
+              commentMakingItMyTurn = comment;
+            }
+          }
+        }
+        if (commentMakingItMyTurn) {
+          const reactions = await listPullCommentReactions(
+            notification.repository.owner.login,
+            notification.repository.name,
+            commentMakingItMyTurn.id,
+          );
+          if (!reactions.some((r) => r.user.id === myGitHubUser.id)) {
+            // I haven't reacted to it:
+            commentsBuilder.push(
+              new Comment(
+                commentMakingItMyTurn.html_url,
+                new PR(prUrl, notification.subject.title),
+                commentMakingItMyTurn.body,
+                commentMakingItMyTurn.user.login,
+                new Date(commentMakingItMyTurn.created_at).getTime(),
+              ),
+            );
+          }
+        }
+      }
+    }
+    repoSyncResult.comments = commentsBuilder;
+
     repo.lastSuccessfulSyncResult = repoSyncResult;
     repo.lastSyncResult = repoSyncResult;
   } catch (e) {
-    console.warn(
-      `Error listing pull requests from ${repo.fullName}. Ignoring it.`,
-      e,
-    );
+    console.warn(`Error syncing ${repo.fullName}. Ignoring it.`, e);
     repoSyncResult.errorMsg = e + "";
     repo.lastSyncResult = repoSyncResult;
   }
@@ -312,6 +409,206 @@ async function listEvents(
       throw e;
     } else {
       return await listEvents(repo, pullNumber, pageNumber, retryNumber + 1);
+    }
+  }
+}
+
+export async function listRecentNotifications(
+  since: Date,
+): Promise<ListNotificationsResponseDataType[0][]> {
+  const result = [];
+  let pageNumber = 1;
+  let response: ListNotificationsResponseType;
+  do {
+    response = await listRecentNotificationsPage(since, pageNumber);
+    for (const arrayElement of response.data) {
+      if (
+        arrayElement.reason === "author" ||
+        arrayElement.reason === "review_requested" ||
+        arrayElement.reason === "mention"
+      ) {
+        result.push(arrayElement as ListNotificationsResponseDataType[0]);
+      }
+    }
+    pageNumber++;
+  } while (response.data.length > 0);
+  return result;
+}
+
+async function listRecentNotificationsPage(
+  since: Date,
+  pageNumber: number,
+  retryNumber = 0,
+): Promise<ListNotificationsResponseType> {
+  try {
+    if (retryNumber > 0) {
+      // exponential backoff:
+      await delay(1000 * Math.pow(2, retryNumber - 1));
+    }
+    gitHubCallsCounter++;
+    return await octokit.activity.listNotificationsForAuthenticatedUser({
+      all: true,
+      participating: true,
+      since: since.toISOString(),
+      page: pageNumber,
+      headers: {
+        "X-GitHub-Api-Version": "2022-11-28",
+        // no caching:
+        "If-None-Match": "",
+      },
+    });
+  } catch (e) {
+    if (retryNumber > 2) {
+      console.error("The maximum number of retries reached");
+      throw e;
+    } else {
+      return await listRecentNotificationsPage(
+        since,
+        pageNumber,
+        retryNumber + 1,
+      );
+    }
+  }
+}
+
+/** In each thread comments are ordered by their created_at date. */
+export async function getPullCommentsGroupedByIdOfFirstCommentInThread(
+  repoOwner: string,
+  repoName: string,
+  pullNumber: number,
+): Promise<Map<number, PullsListCommentsResponseDataType[0][]>> {
+  const resultBuilder = new Map<
+    number,
+    PullsListCommentsResponseDataType[0][]
+  >();
+  let pageNumber = 1;
+  let response: PullsListCommentsResponseType;
+  do {
+    response = await listPullCommentsPageOrderedByIdAsc(
+      repoOwner,
+      repoName,
+      pullNumber,
+      pageNumber,
+    );
+    for (const arrayElement of response.data) {
+      if (arrayElement.in_reply_to_id) {
+        const thread = resultBuilder.get(arrayElement.in_reply_to_id);
+        if (thread) {
+          thread.push(arrayElement);
+        } else {
+          console.error(
+            "impossible - original comment not found. ignoring comment",
+          );
+        }
+      } else {
+        resultBuilder.set(arrayElement.id, [arrayElement]);
+      }
+    }
+    pageNumber++;
+  } while (response.data.length > 0);
+
+  return resultBuilder;
+}
+
+async function listPullCommentsPageOrderedByIdAsc(
+  repoOwner: string,
+  repoName: string,
+  pullNumber: number,
+  pageNumber: number,
+  retryNumber = 0,
+): Promise<PullsListCommentsResponseType> {
+  try {
+    if (retryNumber > 0) {
+      // exponential backoff:
+      await delay(1000 * Math.pow(2, retryNumber - 1));
+    }
+    gitHubCallsCounter++;
+    return await octokit.pulls.listReviewComments({
+      owner: repoOwner,
+      repo: repoName,
+      pull_number: pullNumber,
+      page: pageNumber,
+      headers: {
+        "X-GitHub-Api-Version": "2022-11-28",
+        // no caching:
+        "If-None-Match": "",
+      },
+    });
+  } catch (e) {
+    if (retryNumber > 2) {
+      console.error("The maximum number of retries reached");
+      throw e;
+    } else {
+      return await listPullCommentsPageOrderedByIdAsc(
+        repoOwner,
+        repoName,
+        pullNumber,
+        pageNumber,
+        retryNumber + 1,
+      );
+    }
+  }
+}
+
+async function listPullCommentReactions(
+  repoOwner: string,
+  repoName: string,
+  commentId: number,
+): Promise<PullsListReactionsResponseDataType[0][]> {
+  const result = [];
+  let pageNumber = 1;
+  let response: PullsListReactionsResponseType;
+  do {
+    response = await listPullCommentReactionsPage(
+      repoOwner,
+      repoName,
+      commentId,
+      pageNumber,
+    );
+    for (const arrayElement of response.data) {
+      result.push(arrayElement as PullsListReactionsResponseDataType[0]);
+    }
+    pageNumber++;
+  } while (response.data.length > 0);
+  return result;
+}
+
+async function listPullCommentReactionsPage(
+  repoOwner: string,
+  repoName: string,
+  commentId: number,
+  pageNumber: number,
+  retryNumber = 0,
+): Promise<PullsListReactionsResponseType> {
+  try {
+    if (retryNumber > 0) {
+      // exponential backoff:
+      await delay(1000 * Math.pow(2, retryNumber - 1));
+    }
+    gitHubCallsCounter++;
+    return await octokit.reactions.listForPullRequestReviewComment({
+      owner: repoOwner,
+      repo: repoName,
+      comment_id: commentId,
+      page: pageNumber,
+      headers: {
+        "X-GitHub-Api-Version": "2022-11-28",
+        // no caching:
+        "If-None-Match": "",
+      },
+    });
+  } catch (e) {
+    if (retryNumber > 2) {
+      console.error("The maximum number of retries reached");
+      throw e;
+    } else {
+      return await listPullCommentReactionsPage(
+        repoOwner,
+        repoName,
+        commentId,
+        pageNumber,
+        retryNumber + 1,
+      );
     }
   }
 }

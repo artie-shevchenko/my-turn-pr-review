@@ -30,7 +30,7 @@
   </form>
 </div>
 <div id="main" class="container" style="display:none">
-  <h2><img src="icons/red128.png" style="width: 16px;" alt=""> Others' Pull Requests</h2>
+  <h2><img src="icons/red128.png" style="width: 16px;" alt=""> My Review Requested</h2>
   <table id="myReviewRequestedPrTable">
     <tr class="prTableHeader">
       <td class="repoColumn">Repo</td>
@@ -38,13 +38,23 @@
       <td>Hours I've ignored it for</td>
     </tr>
   </table>
-  <h2><img src="icons/yellow128.png" style="width: 16px;" alt=""> My Pull Requests</h2>
+  <h2><img src="icons/yellow128.png" style="width: 16px;" alt=""> My PRs</h2>
   <table id="myPrTable">
     <tr class="prTableHeader">
       <td class="repoColumn">Repo</td>
       <td class="myPrTitleColumn">Pull Request</td>
       <td>Status</td>
-      <td></td>
+      <td class="notMyTurnColumn"></td>
+    </tr>
+  </table>
+  <h2 id="repliesAndMentions"><img src="icons/yellow128.png" style="width: 16px;" alt=""> Replies and Mentions</h2>
+  <table id="commentsTable">
+    <tr class="prTableHeader">
+      <td class="repoColumn">Repo</td>
+      <td>PR</td>
+      <td class="userColumn">User</td>
+      <td>Comment</td>
+      <td class="notMyTurnColumn"></td>
     </tr>
   </table>
   <br/>

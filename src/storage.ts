@@ -2,7 +2,7 @@ import { getBucket } from "@extend-chrome/storage";
 import { ReposState } from "./reposState";
 import { Settings } from "./settings";
 import { GitHubUser } from "./gitHubUser";
-import { NotMyTurnBlock } from "./notMyTurnBlock";
+import { CommentBlock, NotMyTurnBlock } from "./notMyTurnBlock";
 import { Repo } from "./repo";
 import { RepoState } from "./repoState";
 
@@ -130,6 +130,10 @@ export async function deleteSettings() {
   return store.clear();
 }
 
+const NO_PENDING_REVIEWS_TO_BE_MERGE_READY_DEFAULT = false;
+const COMMENT_EQUALS_CHANGES_REQUESTED_DEFAULT = true;
+const IGNORE_COMMENTS_MORE_THAN_X_DAYS_OLD_DEFAULT = 7;
+
 export async function getSettings(): Promise<Settings> {
   const store = getBucket<Settings>("settings", "sync");
   return (
@@ -141,16 +145,20 @@ export async function getSettings(): Promise<Settings> {
         // property...
         return stored === undefined
           ? new Settings(
-              /* noPendingReviewsToBeMergeReady = */ false,
-              /* commentEqualsChangesRequested = */ false,
+              /* noPendingReviewsToBeMergeReady = */ NO_PENDING_REVIEWS_TO_BE_MERGE_READY_DEFAULT,
+              /* commentEqualsChangesRequested = */ COMMENT_EQUALS_CHANGES_REQUESTED_DEFAULT,
+              /* ignoreCommentsMoreThanXDaysOld = */ IGNORE_COMMENTS_MORE_THAN_X_DAYS_OLD_DEFAULT,
             )
           : new Settings(
               stored.noPendingReviewsToBeMergeReady !== undefined
                 ? stored.noPendingReviewsToBeMergeReady
-                : false,
+                : NO_PENDING_REVIEWS_TO_BE_MERGE_READY_DEFAULT,
               stored.commentEqualsChangesRequested !== undefined
                 ? stored.commentEqualsChangesRequested
-                : true,
+                : COMMENT_EQUALS_CHANGES_REQUESTED_DEFAULT,
+              stored.ignoreCommentsMoreThanXDaysOld !== undefined
+                ? stored.ignoreCommentsMoreThanXDaysOld
+                : IGNORE_COMMENTS_MORE_THAN_X_DAYS_OLD_DEFAULT,
             );
       })
   );
@@ -225,6 +233,85 @@ export async function getNotMyTurnBlockList(): Promise<NotMyTurnBlock[]> {
     const list = await store.get();
     if (list && list.notMyTurnBlockList) {
       resultBuilder.push(...list.notMyTurnBlockList);
+    } else {
+      break;
+    }
+    chunkIndex++;
+  }
+  return resultBuilder;
+}
+
+// CommentBlock storage:
+
+class CommentBlockList {
+  commentBlockList: CommentBlock[];
+
+  constructor(commentBlockList: CommentBlock[]) {
+    this.commentBlockList = commentBlockList;
+  }
+}
+
+const COMMENT_BLOCK_LIST_KEY_BASE = "commentBlockList";
+
+export async function addCommentBlock(block: CommentBlock) {
+  return getCommentBlockList().then((list) => {
+    list.push(block);
+    return storeCommentBlockList(list);
+  });
+}
+
+export async function storeCommentBlockList(list: CommentBlock[]) {
+  const chunks = splitCommentBlockArray(list, MAX_ITEM_BYTES_IN_SYNC_STORAGE);
+  for (let i = 0; i < chunks.length; i++) {
+    const store = getBucket<CommentBlockList>(
+      COMMENT_BLOCK_LIST_KEY_BASE + i,
+      "sync",
+    );
+    await store.set(chunks[i]);
+  }
+  const store = getBucket<CommentBlockList>(
+    COMMENT_BLOCK_LIST_KEY_BASE + chunks.length,
+    "sync",
+  );
+  await store.clear;
+}
+
+function splitCommentBlockArray(
+  blocks: CommentBlock[],
+  maxBytes: number,
+): CommentBlockList[] {
+  const resultBuilder = [] as CommentBlockList[];
+  let itemBuilder = [] as CommentBlock[];
+  for (const block of blocks) {
+    if (
+      getCommentBlockBytes(itemBuilder) + getCommentBlockBytes([block]) >
+      maxBytes
+    ) {
+      resultBuilder.push(new CommentBlockList(itemBuilder));
+      itemBuilder = [];
+    }
+    itemBuilder.push(block);
+  }
+  resultBuilder.push(new CommentBlockList(itemBuilder));
+  return resultBuilder;
+}
+
+function getCommentBlockBytes(commentBlockList: CommentBlock[]) {
+  return new Blob([JSON.stringify(commentBlockList)]).size;
+}
+
+export async function getCommentBlockList(): Promise<CommentBlock[]> {
+  const resultBuilder = [] as CommentBlock[];
+  let chunkIndex = 0;
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const store = getBucket<CommentBlockList>(
+      COMMENT_BLOCK_LIST_KEY_BASE + chunkIndex,
+      "sync",
+    );
+    const list = await store.get();
+    if (list && list.commentBlockList) {
+      resultBuilder.push(...list.commentBlockList);
     } else {
       break;
     }
