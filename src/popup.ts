@@ -18,11 +18,23 @@ import {
   getReposState,
   getSettings,
   storeGitHubUser,
+  storeSettings,
 } from "./storage";
 
 document.getElementById("go-to-options").addEventListener("click", () => {
   chrome.runtime.openOptionsPage();
 });
+
+document
+  .getElementById("hideRepliesAndMentions")
+  .addEventListener("click", () => {
+    getSettings().then((settings) => {
+      document.getElementById("repliesAndMentions").style.display = "none";
+      document.getElementById("commentsTable").style.display = "none";
+      settings.ignoreCommentsMoreThanXDaysOld = 0;
+      return storeSettings(settings);
+    });
+  });
 
 document.getElementById("tokenForm").addEventListener("submit", (e) => {
   e.preventDefault();
@@ -466,11 +478,13 @@ async function populateFromState(
     repoCell.innerHTML = comment.repoFullName;
     repoCell.className = "repoColumn";
     const prCell = row.insertCell(1);
+    prCell.className = "prColumn";
     prCell.innerHTML = comment.pr.name;
     const authorCell = row.insertCell(2);
     authorCell.innerHTML = "@" + comment.authorLogin;
     authorCell.className = "userColumn";
     const commentCell = row.insertCell(3);
+    commentCell.className = "commentColumn";
     let text = comment.body;
     if (text.length > 50) {
       text = text.substring(0, 50) + "...";
