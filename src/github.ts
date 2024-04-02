@@ -2,7 +2,6 @@ import {
   GetResponseDataTypeFromEndpointMethod,
   GetResponseTypeFromEndpointMethod,
 } from "@octokit/types";
-import { Settings } from "./settings";
 import { Comment } from "./comment";
 import { GitHubUser } from "./gitHubUser";
 import { MyPR, ReviewOnMyPR, ReviewRequestOnMyPR } from "./myPR";
@@ -12,6 +11,7 @@ import { RepoState } from "./repoState";
 import { RepoSyncResult } from "./repoSyncResult";
 import { ReviewRequest } from "./reviewRequest";
 import { ReviewState } from "./reviewState";
+import { Settings } from "./settings";
 import { octokit } from "./sync";
 
 const PULLS_PER_PAGE = 100;
@@ -378,7 +378,7 @@ async function listPullRequests(
       // exponential backoff:
       await delay(1000 * Math.pow(2, retryNumber - 1));
     }
-    registerGitHubCall();
+    await throttleGitHub();
     return await octokit.pulls.list({
       owner: r.owner,
       repo: r.name,
@@ -414,7 +414,7 @@ async function listReviews(
       // exponential backoff:
       await delay(1000 * Math.pow(2, retryNumber - 1));
     }
-    registerGitHubCall();
+    await throttleGitHub();
     return await octokit.pulls.listReviews({
       owner: r.owner,
       repo: r.name,
@@ -450,7 +450,7 @@ async function listEvents(
       // exponential backoff:
       await delay(1000 * Math.pow(2, retryNumber - 1));
     }
-    registerGitHubCall();
+    await throttleGitHub();
     return await octokit.issues.listEvents({
       owner: r.owner,
       repo: r.name,
@@ -504,7 +504,7 @@ async function listRecentNotificationsPage(
       // exponential backoff:
       await delay(1000 * Math.pow(2, retryNumber - 1));
     }
-    registerGitHubCall();
+    await throttleGitHub();
     return await octokit.activity.listNotificationsForAuthenticatedUser({
       all: true,
       participating: true,
@@ -581,7 +581,7 @@ async function listPullCommentsPageOrderedByIdAsc(
       // exponential backoff:
       await delay(1000 * Math.pow(2, retryNumber - 1));
     }
-    registerGitHubCall();
+    await throttleGitHub();
     return await octokit.pulls.listReviewComments({
       owner: repoOwner,
       repo: repoName,
@@ -644,7 +644,7 @@ async function listPullCommentReactionsPage(
       // exponential backoff:
       await delay(1000 * Math.pow(2, retryNumber - 1));
     }
-    registerGitHubCall();
+    await throttleGitHub();
     return await octokit.reactions.listForPullRequestReviewComment({
       owner: repoOwner,
       repo: repoName,
@@ -709,7 +709,7 @@ async function listIssueCommentsPageOrderedByIdAsc(
       // exponential backoff:
       await delay(1000 * Math.pow(2, retryNumber - 1));
     }
-    registerGitHubCall();
+    await throttleGitHub();
     return await octokit.issues.listComments({
       owner: repoOwner,
       repo: repoName,
@@ -772,7 +772,7 @@ async function listIssueCommentReactionsPage(
       // exponential backoff:
       await delay(1000 * Math.pow(2, retryNumber - 1));
     }
-    registerGitHubCall();
+    await throttleGitHub();
     return await octokit.reactions.listForIssueComment({
       owner: repoOwner,
       repo: repoName,
@@ -802,11 +802,6 @@ async function listIssueCommentReactionsPage(
 
 let lastGitHubCallUnixMillis = 0;
 
-function registerGitHubCall() {
-  throttleGitHub();
-  gitHubCallsCounter++;
-}
-
 // should prevent throttling by GitHub
 async function throttleGitHub() {
   // to be on a safe side target 0.7 RPS (it's 5000 requests per hour quota. Do preflight requests
@@ -814,19 +809,16 @@ async function throttleGitHub() {
   const millisSinceLastGitHubCall = Date.now() - lastGitHubCallUnixMillis;
   if (millisSinceLastGitHubCall < 1500) {
     const waitMs = 1500 - millisSinceLastGitHubCall;
-    // Reserve a spot just in case there are some parallel execution threads:
     lastGitHubCallUnixMillis += 1500;
-    delay(waitMs);
+    await delay(waitMs);
   } else {
     lastGitHubCallUnixMillis = Date.now();
   }
+  gitHubCallsCounter++;
 }
 
-function delay(delayInMs: number) {
-  const startMillis = Date.now();
-  let i = 0;
-  // #NOT_MATURE: busy waiting, sorry
-  while (Date.now() - startMillis < delayInMs) {
-    i = i + 1;
-  }
+export function delay(milliseconds: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, milliseconds);
+  });
 }
