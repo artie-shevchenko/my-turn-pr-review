@@ -448,7 +448,7 @@ async function populateFromState(
     notMyTurnCell.innerHTML =
       '<img src="icons/xMark16.png" style="cursor: pointer; width: 12px;" id="notMyTurn' +
       i +
-      '" alt="Not my turn" title="Not my turn"/>';
+      '" alt="Not my turn" title="Not my turn / Ignore"/>';
     document.getElementById("notMyTurn" + i).addEventListener("click", () => {
       if (
         !confirm(
@@ -499,7 +499,7 @@ async function populateFromState(
     notMyTurnCell.innerHTML =
       '<img src="icons/xMark16.png" style="cursor: pointer; width: 12px;" id="blockComment' +
       i +
-      '" alt="Not my turn" title="Not my turn"/>';
+      '" alt="Not my turn" title="Not my turn / Ignore"/>';
     document
       .getElementById("blockComment" + i)
       .addEventListener("click", () => {
