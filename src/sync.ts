@@ -199,6 +199,8 @@ async function maybeCleanUpObsoleteCommentBlocks(
   const activeBlocksBuilder = new Set<CommentBlock>();
   for (const repoState of repoStates) {
     for (const comment of repoState.lastSyncResult.comments) {
+      // #NOT_MATURE: if user increases max comment age in settings a comment would be resurrected,
+      // but probably that's okay:
       commentBlocksFromStorage
         .filter((block) => comment.isBlockedBy(block))
         .forEach((block) => activeBlocksBuilder.add(block));
