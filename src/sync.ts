@@ -18,6 +18,7 @@ import {
   getRepoStateByFullName,
   getSettings,
   storeCommentBlockList,
+  storeLastSyncDurationMillis,
   storeNotMyTurnBlockList,
   storeRepoStateMap,
 } from "./storage";
@@ -66,8 +67,6 @@ export async function trySyncWithCredentials(gitHubUser: GitHubUser) {
   }
 }
 
-let syncStartUnixMillis = 0;
-
 /**
  * Note: no concurrent calls!
  */
@@ -75,11 +74,8 @@ export async function sync(myGitHubUser: GitHubUser) {
   const prBlocksAtSyncStart = await getNotMyTurnBlockList();
   const commentBlocksAtSyncStart = await getCommentBlockList();
 
-  // #NOT_MATURE: what if it manages to exceed the quota in a single sync?
-  await throttleGitHub();
-
   resetGitHubCallsCounter();
-  syncStartUnixMillis = Date.now();
+  const syncStartUnixMillis = Date.now();
   const settings = await getSettings();
   const allReposIncludingDisabled = await getRepos();
   const repos = allReposIncludingDisabled.filter((v) => v.monitoringEnabled);
@@ -144,6 +140,7 @@ export async function sync(myGitHubUser: GitHubUser) {
     );
   }
 
+  storeLastSyncDurationMillis(Date.now() - syncStartUnixMillis);
   console.log(gitHubCallsCounter + " GitHub API calls in the last sync.");
 
   await reposState.updateIcon();
@@ -219,23 +216,4 @@ async function maybeCleanUpObsoleteCommentBlocks(
   if (commentBlocksFromStorage.length != activeBlocksBuilder.size) {
     return storeCommentBlockList([...activeBlocksBuilder]);
   }
-}
-
-// should prevent throttling by GitHub
-async function throttleGitHub() {
-  const secondsSinceLastSyncStart = (Date.now() - syncStartUnixMillis) / 1000;
-  if (secondsSinceLastSyncStart < 2 * gitHubCallsCounter) {
-    // to be on a safe side target 0.5 RPS (it's 5000 requests per hour quota):
-    const waitMs = (2 * gitHubCallsCounter - secondsSinceLastSyncStart) * 1000;
-    console.log(
-      "Throttling GitHub calls to 0.5 RPS. Waiting for " + waitMs + "ms",
-    );
-    await delay(waitMs);
-  }
-}
-
-export function delay(milliseconds: number) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, milliseconds);
-  });
 }
