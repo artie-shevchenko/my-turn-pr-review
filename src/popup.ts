@@ -472,7 +472,7 @@ async function populateFromState(
 
     const repoCell = row.insertCell(0);
     repoCell.innerHTML = comment.repoFullName;
-    repoCell.className = "repoColumn";
+    repoCell.className = "commentsTableRepoColumn";
 
     const prCell = row.insertCell(1);
     prCell.className = "prColumn";
@@ -485,8 +485,8 @@ async function populateFromState(
     const commentCell = row.insertCell(3);
     commentCell.className = "commentColumn";
     let text = comment.body;
-    if (text.length > 50) {
-      text = text.substring(0, 50) + "...";
+    if (text.length > 70) {
+      text = text.substring(0, 70) + "...";
     }
     text = '"' + text + '"';
     commentCell.innerHTML =
