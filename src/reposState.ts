@@ -4,6 +4,7 @@ import { RepoState } from "./repoState";
 import { Settings } from "./settings";
 import {
   getCommentBlockList,
+  getLastSyncDurationMillis,
   getMonitoringEnabledRepos,
   getNotMyTurnBlockList,
   getSettings,
@@ -41,10 +42,14 @@ export class ReposState {
     if (!settings) {
       settings = await getSettings();
     }
+    const lastSyncDurationMillis = await getLastSyncDurationMillis();
     let syncStatus = SyncStatus.Green;
     for (const repo of monitoringEnabledRepos) {
       const repoState = this.repoStateByFullName.get(repo.fullName());
-      if (!repoState || !repoState.hasRecentSuccessfulSync()) {
+      if (
+        !repoState ||
+        !repoState.hasRecentSuccessfulSync(lastSyncDurationMillis)
+      ) {
         syncStatus = SyncStatus.Grey;
         break;
       }
@@ -59,7 +64,12 @@ export class ReposState {
 
       syncStatus = Math.max(
         syncStatus,
-        repoState.getSyncStatus(notMyTurnBlocks, commentBlocks, settings),
+        repoState.getSyncStatus(
+          notMyTurnBlocks,
+          commentBlocks,
+          settings,
+          lastSyncDurationMillis,
+        ),
       );
     }
 

@@ -118,6 +118,28 @@ export async function getGitHubUser(): Promise<GitHubUser> {
   return store.get();
 }
 
+// GitHubUser storage:
+
+class LastSyncStats {
+  lastSyncDurationMillis: number;
+
+  constructor(lastSyncDurationMillis: number) {
+    this.lastSyncDurationMillis = lastSyncDurationMillis;
+  }
+}
+
+export async function storeLastSyncDurationMillis(
+  lastSyncDurationMillis: number,
+) {
+  const store = getBucket<LastSyncStats>("lastSyncDurationMillis", "local");
+  return store.set(new LastSyncStats(lastSyncDurationMillis));
+}
+
+export async function getLastSyncDurationMillis(): Promise<number> {
+  const store = getBucket<LastSyncStats>("lastSyncDurationMillis", "local");
+  return store.get().then((v) => v.lastSyncDurationMillis);
+}
+
 // Settings storage:
 
 export async function storeSettings(settings: Settings) {

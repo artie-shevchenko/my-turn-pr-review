@@ -12,6 +12,7 @@ import {
   addNotMyTurnBlock,
   getCommentBlockList,
   getGitHubUser,
+  getLastSyncDurationMillis,
   getMonitoringEnabledRepos,
   getNotMyTurnBlockList,
   getReposState,
@@ -131,6 +132,7 @@ async function updatePopupPage() {
     settings,
   );
 
+  const lastSyncDurationMillis = await getLastSyncDurationMillis();
   const repoStateByFullName = reposState.repoStateByFullName;
   const syncSuccessRepos = repos
     .filter((r) => {
@@ -139,7 +141,7 @@ async function updatePopupPage() {
         return false;
       }
       return (
-        repoState.hasRecentSuccessfulSync() ||
+        repoState.hasRecentSuccessfulSync(lastSyncDurationMillis) ||
         // chrome just restarted
         (repoState.lastSuccessfulSyncResult &&
           repoState.lastSuccessfulSyncResult.syncStartUnixMillis ==

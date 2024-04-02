@@ -23,8 +23,9 @@ export class RepoState {
     notMyTurnBlocks: NotMyTurnBlock[],
     commentBlocks: CommentBlock[],
     settings: Settings,
+    lastSyncDurationMillis: number,
   ): SyncStatus {
-    if (!this.hasRecentSuccessfulSync()) {
+    if (!this.hasRecentSuccessfulSync(lastSyncDurationMillis)) {
       return SyncStatus.Grey;
     }
 
@@ -53,9 +54,10 @@ export class RepoState {
     return Math.max(requestsForMyReviewStatus, myPRsStatus, commentsStatus);
   }
 
-  hasRecentSuccessfulSync(): boolean {
+  hasRecentSuccessfulSync(lastSyncDurationMillis: number): boolean {
     return (
-      this.lastSuccessfulSyncResult && this.lastSuccessfulSyncResult.isRecent()
+      this.lastSuccessfulSyncResult &&
+      this.lastSuccessfulSyncResult.isRecent(lastSyncDurationMillis)
     );
   }
 

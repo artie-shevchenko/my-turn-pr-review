@@ -38,8 +38,12 @@ export class RepoSyncResult {
   }
 
   /** Whether we treat is as still reliable data in absence of a more recent successful sync. */
-  isRecent(): boolean {
-    return this.syncStartUnixMillis >= Date.now() - 1000 * 60 * 5;
+  isRecent(lastSyncDurationMillis: number): boolean {
+    const startIsWithinLast5Minutes =
+      this.syncStartUnixMillis >= Date.now() - 1000 * 60 * 5;
+    const isWithin3SyncsDuration =
+      Date.now() - this.syncStartUnixMillis < 3 * lastSyncDurationMillis;
+    return startIsWithinLast5Minutes || isWithin3SyncsDuration;
   }
 
   // Probably better replaced with a dto interface. See
