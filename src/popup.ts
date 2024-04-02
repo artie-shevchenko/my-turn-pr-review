@@ -333,11 +333,7 @@ async function populateFromState(
     })
     .filter((comment) => comment.isMyTurn(settings, commentBlocks))
     .sort((a, b) => {
-      if (a.repoFullName === b.repoFullName) {
-        return a.pr.name.localeCompare(b.pr.name);
-      } else {
-        return a.repoFullName.localeCompare(b.repoFullName);
-      }
+      return a.createdAtUnixMillis - b.createdAtUnixMillis;
     });
 
   const reviewRequestedTable = document.getElementById(
@@ -477,12 +473,15 @@ async function populateFromState(
     const repoCell = row.insertCell(0);
     repoCell.innerHTML = comment.repoFullName;
     repoCell.className = "repoColumn";
+
     const prCell = row.insertCell(1);
     prCell.className = "prColumn";
     prCell.innerHTML = comment.pr.name;
+
     const authorCell = row.insertCell(2);
     authorCell.innerHTML = "@" + comment.authorLogin;
     authorCell.className = "userColumn";
+
     const commentCell = row.insertCell(3);
     commentCell.className = "commentColumn";
     let text = comment.body;
@@ -493,7 +492,13 @@ async function populateFromState(
     commentCell.innerHTML =
       "<a href = '" + comment.url + "' target='_blank'>" + text + "</a>";
 
-    const notMyTurnCell = row.insertCell(4);
+    const hoursCell = row.insertCell(4);
+    hoursCell.innerHTML =
+      Math.floor(
+        (Date.now() - comment.createdAtUnixMillis) / (1000 * 60 * 60),
+      ) + "h";
+
+    const notMyTurnCell = row.insertCell(5);
     notMyTurnCell.align = "center";
     notMyTurnCell.className = "notMyTurnColumn";
     notMyTurnCell.innerHTML =
