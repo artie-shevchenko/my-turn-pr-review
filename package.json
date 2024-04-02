@@ -1,6 +1,6 @@
 {
   "name": "my-turn-pr-review",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "My Turn - PR Review",
   "scripts": {
     "start": "webpack --watch --config webpack.dev.js",
