@@ -217,7 +217,7 @@ export async function syncGitHubRepo(
           continue;
         }
 
-        // Only mentions supported for issue comments (as there are often tons of spam from
+        // Only mentions are supported for issue comments (as there are often tons of spam from
         // automation): #NOT_MATURE: should be followed by " " or tab etc
         if (comment.body.indexOf("@" + myGitHubUser.login) >= 0) {
           // check if there are any reactions from my side is made later:
