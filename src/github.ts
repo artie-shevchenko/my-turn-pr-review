@@ -805,12 +805,12 @@ let lastGitHubCallUnixMillis = 0;
 
 // should prevent throttling by GitHub
 async function throttleGitHub() {
-  // to be on a safe side target 0.7 RPS (it's 5000 requests per hour quota. Do preflight requests
-  // count against the quota?):
+  // to be on a safe side target 1 RPS (it's 5000 requests per hour quota. Hopefully preflight
+  // requests don't count against the quota?):
   const millisSinceLastGitHubCall = Date.now() - lastGitHubCallUnixMillis;
-  if (millisSinceLastGitHubCall < 1500) {
-    const waitMs = 1500 - millisSinceLastGitHubCall;
-    lastGitHubCallUnixMillis += 1500;
+  if (millisSinceLastGitHubCall < 1000) {
+    const waitMs = 1000 - millisSinceLastGitHubCall;
+    lastGitHubCallUnixMillis += 1000;
     await delay(waitMs);
   } else {
     lastGitHubCallUnixMillis = Date.now();
