@@ -19,6 +19,7 @@ const MAX_NUMBER_OF_RETRIES = 3;
 const ISSUE_COMMENTS_PER_PAGE = 100;
 const ISSUE_COMMENT_REACTIONS_PER_PAGE = 100;
 const ISSUE_EVENTS_PER_PAGE = 100;
+const NOTIFICATIONS_PER_PAGE = 50;
 const PULL_COMMENTS_PER_PAGE = 100;
 const PULL_COMMENT_REACTIONS_PER_PAGE = 100;
 const PULLS_PER_PAGE = 100;
@@ -221,21 +222,15 @@ async function getLatestReviewRequestedEventTimestamp(
   myGitHubUserId: number,
 ): Promise<number> {
   let result = 0;
-  let pageNumber = 1;
-  let eventsListResponse: IssuesListEventsResponseType;
-  do {
-    eventsListResponse = await listIssueEvents(repo, pr.number, pageNumber);
-    for (const arrayElement of eventsListResponse.data) {
-      const event = arrayElement as IssuesListEventsResponseDataType[0];
-      if (
-        event.event === "review_requested" &&
-        event.requested_reviewer.id === myGitHubUserId
-      ) {
-        result = Math.max(result, new Date(event.created_at).getTime());
-      }
+  const events = await listIssueEvents(repo, pr.number);
+  for (const event of events) {
+    if (
+      event.event === "review_requested" &&
+      event.requested_reviewer.id === myGitHubUserId
+    ) {
+      result = Math.max(result, new Date(event.created_at).getTime());
     }
-    pageNumber++;
-  } while (eventsListResponse.data.length >= ISSUE_EVENTS_PER_PAGE);
+  }
   return result;
 }
 
@@ -494,7 +489,24 @@ async function listReviews(
   }
 }
 
-async function listIssueEvents(
+export async function listIssueEvents(
+  repo: RepoState,
+  pullNumber: number,
+): Promise<IssuesListEventsResponseDataType[0][]> {
+  const result = [];
+  let pageNumber = 1;
+  let response: IssuesListEventsResponseType;
+  do {
+    response = await listIssueEventsPage(repo, pullNumber, pageNumber);
+    for (const arrayElement of response.data) {
+      result.push(arrayElement as IssuesListEventsResponseDataType[0]);
+    }
+    pageNumber++;
+  } while (response.data.length >= ISSUE_EVENTS_PER_PAGE);
+  return result;
+}
+
+async function listIssueEventsPage(
   repo: RepoState,
   pullNumber: number,
   pageNumber: number,
@@ -525,7 +537,7 @@ async function listIssueEvents(
       console.error("The maximum number of retries reached");
       throw e;
     } else {
-      return await listIssueEvents(
+      return await listIssueEventsPage(
         repo,
         pullNumber,
         pageNumber,
@@ -553,7 +565,7 @@ export async function listRecentNotifications(
       }
     }
     pageNumber++;
-  } while (response.data.length > 0);
+  } while (response.data.length >= NOTIFICATIONS_PER_PAGE);
   return result;
 }
 
@@ -572,6 +584,7 @@ async function listRecentNotificationsPage(
       all: true,
       participating: true,
       since: since.toISOString(),
+      per_page: NOTIFICATIONS_PER_PAGE,
       page: pageNumber,
       headers: {
         "X-GitHub-Api-Version": "2022-11-28",
