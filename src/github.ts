@@ -243,15 +243,10 @@ async function syncMyPR(pr: PullsListResponseDataType[0], repo: RepoState) {
   });
 
   // Now query reviews already received:
-  let reviews: PullsListReviewsResponseDataType = [];
-  let pageNumber = 1;
-  let reviewsBatch = await listReviews(repo, pr.number, pageNumber);
-  while (reviewsBatch.data.length >= REVIEWS_PER_PAGE) {
-    reviews = reviews.concat(reviewsBatch.data);
-    pageNumber++;
-    reviewsBatch = await listReviews(repo, pr.number, pageNumber);
-  }
-  reviews = reviews.concat(reviewsBatch.data);
+  const reviews: PullsListReviewsResponseDataType = await listReviews(
+    repo,
+    pr.number,
+  );
 
   const prObj = new PR(pr.html_url, pr.title);
   const reviewsReceived = reviews.map((review) => {
@@ -453,7 +448,24 @@ async function listPullRequests(
   }
 }
 
-async function listReviews(
+export async function listReviews(
+  repo: RepoState,
+  pullNumber: number,
+): Promise<PullsListReviewsResponseDataType[0][]> {
+  const result = [];
+  let pageNumber = 1;
+  let response: PullsListReviewsResponseType;
+  do {
+    response = await listReviewsPage(repo, pullNumber, pageNumber);
+    for (const arrayElement of response.data) {
+      result.push(arrayElement as PullsListReviewsResponseDataType[0]);
+    }
+    pageNumber++;
+  } while (response.data.length >= REVIEWS_PER_PAGE);
+  return result;
+}
+
+async function listReviewsPage(
   repo: RepoState,
   pullNumber: number,
   pageNumber: number,
@@ -484,7 +496,12 @@ async function listReviews(
       console.error("The maximum number of retries reached");
       throw e;
     } else {
-      return await listReviews(repo, pullNumber, pageNumber, retryNumber + 1);
+      return await listReviewsPage(
+        repo,
+        pullNumber,
+        pageNumber,
+        retryNumber + 1,
+      );
     }
   }
 }
