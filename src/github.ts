@@ -96,162 +96,33 @@ export async function syncGitHubRepo(
   repoSyncResult.syncStartUnixMillis = Date.now();
   repoSyncResult.ignoredCommentsMoreThanXDaysOld =
     settings.ignoreCommentsMoreThanXDaysOld;
-  const requestsForMyReviewBuilder = [] as ReviewRequest[];
-  const myPRsToSyncBuilder = [] as PullsListResponseDataType[0][];
 
   try {
-    let pageNumber = 1;
-    let pullsListResponse: PullsListResponseType;
-    do {
-      pullsListResponse = await listPullRequests(repo, pageNumber);
-      for (const arrayElement of pullsListResponse.data) {
-        const pr = arrayElement as PullsListResponseDataType[0];
-        if (pr.user.id == myGitHubUser.id) {
-          myPRsToSyncBuilder.push(pr);
-        } else {
-          // Somebody else's PR
-          for (const reviewer of pr.requested_reviewers) {
-            if (reviewer.id === myGitHubUser.id) {
-              const reviewRequest = await syncRequestForMyReview(
-                pr,
-                repo,
-                myGitHubUser.id,
-              );
-              requestsForMyReviewBuilder.push(reviewRequest);
-            }
-          }
-        }
-      }
-      pageNumber++;
-    } while (pullsListResponse.data.length >= PULLS_PER_PAGE);
-    // If review request was withdrawn and then re-requested again the first request will be
-    // (correctly) ignored:
-    repoSyncResult.requestsForMyReview = requestsForMyReviewBuilder;
+    // Sync requests for my review:
+
+    const myPRsToSyncBuilder = [] as PullsListResponseDataType[0][];
+    repoSyncResult.requestsForMyReview = await syncRequestsForMyReview(
+      repo,
+      myGitHubUser,
+      myPRsToSyncBuilder,
+    );
+    const myPRsToSync = myPRsToSyncBuilder;
 
     // Sync my PRs:
 
-    const myPRsBuilder = [] as MyPR[];
-    for (const pr of myPRsToSyncBuilder) {
+    repoSyncResult.myPRs = [] as MyPR[];
+    for (const pr of myPRsToSync) {
       const myPR = await syncMyPR(pr, repo);
-      myPRsBuilder.push(myPR);
+      repoSyncResult.myPRs.push(myPR);
     }
-    repoSyncResult.myPRs = myPRsBuilder;
 
     // Sync comments:
 
-    const commentsBuilder = [] as Comment[];
-    for (const notification of recentNotifications) {
-      if (notification.subject.type !== "PullRequest") {
-        continue;
-      }
-      const prUrl = notification.subject.url;
-      const prNumber = Number.parseInt(
-        prUrl.substring(prUrl.lastIndexOf("/") + 1),
-      );
-      const pullCommentsGroupedByIdOfFirstCommentInThread =
-        await getPullCommentsGroupedByIdOfFirstCommentInThread(
-          notification.repository.owner.login,
-          notification.repository.name,
-          prNumber,
-        );
-      for (const [
-        ,
-        commentsThread,
-      ] of pullCommentsGroupedByIdOfFirstCommentInThread) {
-        let iCommentedOnThread = false;
-        let commentMakingItMyTurn: PullsListCommentsResponseDataType[0];
-        for (const comment of commentsThread) {
-          if (comment.user.id === myGitHubUser.id) {
-            iCommentedOnThread = true;
-          }
-
-          if (
-            new Date(comment.created_at) < settings.getMinCommentCreateDate()
-          ) {
-            continue;
-          }
-
-          if (comment.user.id === myGitHubUser.id) {
-            // I already responded:
-            commentMakingItMyTurn = undefined;
-            continue;
-          }
-
-          if (
-            iCommentedOnThread ||
-            // #NOT_MATURE: should be followed by " " or tab etc
-            comment.body.indexOf("@" + myGitHubUser.login) >= 0
-          ) {
-            // check if there are any reactions from my side is made later:
-            commentMakingItMyTurn = comment;
-          }
-        }
-        if (commentMakingItMyTurn) {
-          const reactions = await listPullCommentReactions(
-            notification.repository.owner.login,
-            notification.repository.name,
-            commentMakingItMyTurn.id,
-          );
-          if (!reactions.some((r) => r.user.id === myGitHubUser.id)) {
-            // I haven't reacted to it:
-            commentsBuilder.push(
-              new Comment(
-                commentMakingItMyTurn.html_url,
-                new PR(prUrl, notification.subject.title),
-                commentMakingItMyTurn.body,
-                commentMakingItMyTurn.user.login,
-                new Date(commentMakingItMyTurn.created_at).getTime(),
-              ),
-            );
-          }
-        }
-      }
-      const issueCommentsSortedByCreatedAtAsc =
-        await getIssueCommentsSortedByCreatedAtAsc(
-          notification.repository.owner.login,
-          notification.repository.name,
-          prNumber,
-        );
-      let commentMakingItMyTurn: IssuesListCommentsResponseDataType[0];
-      for (const comment of issueCommentsSortedByCreatedAtAsc) {
-        if (new Date(comment.created_at) < settings.getMinCommentCreateDate()) {
-          continue;
-        }
-
-        if (comment.user.id === myGitHubUser.id) {
-          // I already responded:
-          commentMakingItMyTurn = undefined;
-          continue;
-        }
-
-        // Only mentions are supported for issue comments (as there are often tons of spam from
-        // automation): #NOT_MATURE: should be followed by " " or tab etc
-        if (comment.body.indexOf("@" + myGitHubUser.login) >= 0) {
-          // check if there are any reactions from my side is made later:
-          commentMakingItMyTurn = comment;
-        }
-      }
-      if (commentMakingItMyTurn) {
-        const reactions = await listIssueCommentReactions(
-          notification.repository.owner.login,
-          notification.repository.name,
-          commentMakingItMyTurn.id,
-        );
-        if (!reactions.some((r) => r.user.id === myGitHubUser.id)) {
-          // I haven't reacted to it:
-          commentsBuilder.push(
-            new Comment(
-              commentMakingItMyTurn.html_url,
-              new PR(prUrl, notification.subject.title),
-              commentMakingItMyTurn.body,
-              commentMakingItMyTurn.user.login,
-              new Date(commentMakingItMyTurn.created_at).getTime(),
-            ),
-          );
-        }
-      }
-    }
-    repoSyncResult.comments = commentsBuilder;
+    repoSyncResult.comments = await syncComments(
+      recentNotifications,
+      myGitHubUser,
+      settings,
+    );
 
     repo.lastSuccessfulSyncResult = repoSyncResult;
     repo.lastSyncResult = repoSyncResult;
@@ -262,42 +133,37 @@ export async function syncGitHubRepo(
   }
 }
 
-async function syncMyPR(pr: PullsListResponseDataType[0], repo: RepoState) {
-  const reviewsRequested = pr.requested_reviewers.map((reviewer) => {
-    const url = pr.html_url;
-    // To have an up-to-date title:
-    const pullRequest = new PR(url, pr.title);
-    return new ReviewRequestOnMyPR(pullRequest, reviewer.id);
-  });
-
-  // Now query reviews already received:
-  let reviews: PullsListReviewsResponseDataType = [];
+async function syncRequestsForMyReview(
+  repo: RepoState,
+  myGitHubUser: GitHubUser,
+  myPRsToSyncBuilder: PullsListResponseDataType[0][],
+) {
+  const requestsForMyReviewBuilder = [] as ReviewRequest[];
   let pageNumber = 1;
-  let reviewsBatch = await listReviews(repo, pr.number, pageNumber);
-  while (reviewsBatch.data.length >= REVIEWS_PER_PAGE) {
-    reviews = reviews.concat(reviewsBatch.data);
+  let pullsListResponse: PullsListResponseType;
+  do {
+    pullsListResponse = await listPullRequests(repo, pageNumber);
+    for (const arrayElement of pullsListResponse.data) {
+      const pr = arrayElement as PullsListResponseDataType[0];
+      if (pr.user.id == myGitHubUser.id) {
+        myPRsToSyncBuilder.push(pr);
+      } else {
+        // Somebody else's PR
+        for (const reviewer of pr.requested_reviewers) {
+          if (reviewer.id === myGitHubUser.id) {
+            const reviewRequest = await syncRequestForMyReview(
+              pr,
+              repo,
+              myGitHubUser.id,
+            );
+            requestsForMyReviewBuilder.push(reviewRequest);
+          }
+        }
+      }
+    }
     pageNumber++;
-    reviewsBatch = await listReviews(repo, pr.number, pageNumber);
-  }
-  reviews = reviews.concat(reviewsBatch.data);
-
-  const prObj = new PR(pr.html_url, pr.title);
-  const reviewsReceived = reviews.map((review) => {
-    const state = review.state;
-    const typedState = state as keyof typeof ReviewState;
-    return new ReviewOnMyPR(
-      prObj,
-      review.user.id,
-      ReviewState[typedState],
-      Date.parse(review.submitted_at),
-    );
-  });
-  return MyPR.ofGitHubResponses(
-    prObj,
-    reviewsReceived,
-    reviewsRequested,
-    pr.user.id,
-  );
+  } while (pullsListResponse.data.length >= PULLS_PER_PAGE);
+  return requestsForMyReviewBuilder;
 }
 
 async function syncRequestForMyReview(
@@ -371,6 +237,190 @@ async function getLatestReviewRequestedEventTimestamp(
     pageNumber++;
   } while (eventsListResponse.data.length >= ISSUE_EVENTS_PER_PAGE);
   return result;
+}
+
+async function syncMyPR(pr: PullsListResponseDataType[0], repo: RepoState) {
+  const reviewsRequested = pr.requested_reviewers.map((reviewer) => {
+    const url = pr.html_url;
+    // To have an up-to-date title:
+    const pullRequest = new PR(url, pr.title);
+    return new ReviewRequestOnMyPR(pullRequest, reviewer.id);
+  });
+
+  // Now query reviews already received:
+  let reviews: PullsListReviewsResponseDataType = [];
+  let pageNumber = 1;
+  let reviewsBatch = await listReviews(repo, pr.number, pageNumber);
+  while (reviewsBatch.data.length >= REVIEWS_PER_PAGE) {
+    reviews = reviews.concat(reviewsBatch.data);
+    pageNumber++;
+    reviewsBatch = await listReviews(repo, pr.number, pageNumber);
+  }
+  reviews = reviews.concat(reviewsBatch.data);
+
+  const prObj = new PR(pr.html_url, pr.title);
+  const reviewsReceived = reviews.map((review) => {
+    const state = review.state;
+    const typedState = state as keyof typeof ReviewState;
+    return new ReviewOnMyPR(
+      prObj,
+      review.user.id,
+      ReviewState[typedState],
+      Date.parse(review.submitted_at),
+    );
+  });
+  return MyPR.ofGitHubResponses(
+    prObj,
+    reviewsReceived,
+    reviewsRequested,
+    pr.user.id,
+  );
+}
+
+async function syncComments(
+  recentNotifications: ListNotificationsResponseDataType[0][],
+  myGitHubUser: GitHubUser,
+  settings: Settings,
+) {
+  const commentsBuilder = [] as Comment[];
+  for (const notification of recentNotifications) {
+    if (notification.subject.type !== "PullRequest") {
+      continue;
+    }
+    await syncPullComments(
+      notification,
+      myGitHubUser,
+      settings,
+      commentsBuilder,
+    );
+    await syncIssueComments(
+      notification,
+      myGitHubUser,
+      settings,
+      commentsBuilder,
+    );
+  }
+  return commentsBuilder;
+}
+
+async function syncPullComments(
+  notification: ListNotificationsResponseDataType[0],
+  myGitHubUser: GitHubUser,
+  settings: Settings,
+  commentsBuilder: Comment[],
+) {
+  const prUrl = notification.subject.url;
+  const prNumber = Number.parseInt(prUrl.substring(prUrl.lastIndexOf("/") + 1));
+  const pullCommentsGroupedByIdOfFirstCommentInThread =
+    await getPullCommentsGroupedByIdOfFirstCommentInThread(
+      notification.repository.owner.login,
+      notification.repository.name,
+      prNumber,
+    );
+  for (const [
+    ,
+    commentsThread,
+  ] of pullCommentsGroupedByIdOfFirstCommentInThread) {
+    let iCommentedOnThread = false;
+    let commentMakingItMyTurn: PullsListCommentsResponseDataType[0];
+    for (const comment of commentsThread) {
+      if (comment.user.id === myGitHubUser.id) {
+        iCommentedOnThread = true;
+      }
+
+      if (new Date(comment.created_at) < settings.getMinCommentCreateDate()) {
+        continue;
+      }
+
+      if (comment.user.id === myGitHubUser.id) {
+        // I already responded:
+        commentMakingItMyTurn = undefined;
+        continue;
+      }
+
+      if (
+        iCommentedOnThread ||
+        // #NOT_MATURE: should be followed by " " or tab etc
+        comment.body.indexOf("@" + myGitHubUser.login) >= 0
+      ) {
+        // check if there are any reactions from my side is made later:
+        commentMakingItMyTurn = comment;
+      }
+    }
+    if (commentMakingItMyTurn) {
+      const reactions = await listPullCommentReactions(
+        notification.repository.owner.login,
+        notification.repository.name,
+        commentMakingItMyTurn.id,
+      );
+      if (!reactions.some((r) => r.user.id === myGitHubUser.id)) {
+        // I haven't reacted to it:
+        commentsBuilder.push(
+          new Comment(
+            commentMakingItMyTurn.html_url,
+            new PR(prUrl, notification.subject.title),
+            commentMakingItMyTurn.body,
+            commentMakingItMyTurn.user.login,
+            new Date(commentMakingItMyTurn.created_at).getTime(),
+          ),
+        );
+      }
+    }
+  }
+}
+
+async function syncIssueComments(
+  notification: ListNotificationsResponseDataType[0],
+  myGitHubUser: GitHubUser,
+  settings: Settings,
+  commentsBuilder: Comment[],
+) {
+  const prUrl = notification.subject.url;
+  const prNumber = Number.parseInt(prUrl.substring(prUrl.lastIndexOf("/") + 1));
+  const issueCommentsSortedByCreatedAtAsc =
+    await getIssueCommentsSortedByCreatedAtAsc(
+      notification.repository.owner.login,
+      notification.repository.name,
+      prNumber,
+    );
+  let commentMakingItMyTurn: IssuesListCommentsResponseDataType[0];
+  for (const comment of issueCommentsSortedByCreatedAtAsc) {
+    if (new Date(comment.created_at) < settings.getMinCommentCreateDate()) {
+      continue;
+    }
+
+    if (comment.user.id === myGitHubUser.id) {
+      // I already responded:
+      commentMakingItMyTurn = undefined;
+      continue;
+    }
+
+    // Only mentions are supported for issue comments (as there are often tons of spam from
+    // automation): #NOT_MATURE: should be followed by " " or tab etc
+    if (comment.body.indexOf("@" + myGitHubUser.login) >= 0) {
+      // check if there are any reactions from my side is made later:
+      commentMakingItMyTurn = comment;
+    }
+  }
+  if (commentMakingItMyTurn) {
+    const reactions = await listIssueCommentReactions(
+      notification.repository.owner.login,
+      notification.repository.name,
+      commentMakingItMyTurn.id,
+    );
+    if (!reactions.some((r) => r.user.id === myGitHubUser.id)) {
+      // I haven't reacted to it:
+      commentsBuilder.push(
+        new Comment(
+          commentMakingItMyTurn.html_url,
+          new PR(prUrl, notification.subject.title),
+          commentMakingItMyTurn.body,
+          commentMakingItMyTurn.user.login,
+          new Date(commentMakingItMyTurn.created_at).getTime(),
+        ),
+      );
+    }
+  }
 }
 
 async function listPullRequests(
