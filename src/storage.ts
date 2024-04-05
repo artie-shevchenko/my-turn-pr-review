@@ -154,6 +154,9 @@ export async function deleteSettings() {
 
 const NO_PENDING_REVIEWS_TO_BE_MERGE_READY_DEFAULT = false;
 const COMMENT_EQUALS_CHANGES_REQUESTED_DEFAULT = true;
+// Even though GitHub thinks that's the case, default to false, see
+// https://github.com/artie-shevchenko/my-turn-pr-review/issues/52
+const SINGLE_COMMENT_IS_REVIEW_DEFAULT = false;
 const IGNORE_COMMENTS_MORE_THAN_X_DAYS_OLD_DEFAULT = 5;
 
 export async function getSettings(): Promise<Settings> {
@@ -167,9 +170,14 @@ export async function getSettings(): Promise<Settings> {
         // property...
         return stored === undefined
           ? new Settings(
-              /* noPendingReviewsToBeMergeReady = */ NO_PENDING_REVIEWS_TO_BE_MERGE_READY_DEFAULT,
-              /* commentEqualsChangesRequested = */ COMMENT_EQUALS_CHANGES_REQUESTED_DEFAULT,
-              /* ignoreCommentsMoreThanXDaysOld = */ IGNORE_COMMENTS_MORE_THAN_X_DAYS_OLD_DEFAULT,
+              /* noPendingReviewsToBeMergeReady = */
+              NO_PENDING_REVIEWS_TO_BE_MERGE_READY_DEFAULT,
+              /* commentEqualsChangesRequested = */
+              COMMENT_EQUALS_CHANGES_REQUESTED_DEFAULT,
+              /* singleCommentIsReview = */
+              SINGLE_COMMENT_IS_REVIEW_DEFAULT,
+              /* ignoreCommentsMoreThanXDaysOld = */
+              IGNORE_COMMENTS_MORE_THAN_X_DAYS_OLD_DEFAULT,
             )
           : new Settings(
               stored.noPendingReviewsToBeMergeReady !== undefined
@@ -178,6 +186,9 @@ export async function getSettings(): Promise<Settings> {
               stored.commentEqualsChangesRequested !== undefined
                 ? stored.commentEqualsChangesRequested
                 : COMMENT_EQUALS_CHANGES_REQUESTED_DEFAULT,
+              stored.singleCommentIsReview !== undefined
+                ? stored.singleCommentIsReview
+                : SINGLE_COMMENT_IS_REVIEW_DEFAULT,
               stored.ignoreCommentsMoreThanXDaysOld !== undefined
                 ? stored.ignoreCommentsMoreThanXDaysOld
                 : IGNORE_COMMENTS_MORE_THAN_X_DAYS_OLD_DEFAULT,

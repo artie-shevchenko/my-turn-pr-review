@@ -24,6 +24,7 @@ const PULL_COMMENTS_PER_PAGE = 100;
 const PULL_COMMENT_REACTIONS_PER_PAGE = 100;
 const PULLS_PER_PAGE = 100;
 const REVIEWS_PER_PAGE = 100;
+const REVIEW_COMMENTS_PER_PAGE = 100;
 
 type PullsListResponseType = GetResponseTypeFromEndpointMethod<
   typeof octokit.pulls.list
@@ -37,7 +38,6 @@ type PullsListReviewsResponseType = GetResponseTypeFromEndpointMethod<
 type PullsListReviewsResponseDataType = GetResponseDataTypeFromEndpointMethod<
   typeof octokit.pulls.listReviews
 >;
-
 type IssuesListEventsResponseType = GetResponseTypeFromEndpointMethod<
   typeof octokit.issues.listEvents
 >;
@@ -56,6 +56,13 @@ type PullsListCommentsResponseType = GetResponseTypeFromEndpointMethod<
 type PullsListCommentsResponseDataType = GetResponseDataTypeFromEndpointMethod<
   typeof octokit.pulls.listReviewComments
 >;
+type ListCommentsForReviewResponseType = GetResponseTypeFromEndpointMethod<
+  typeof octokit.pulls.listCommentsForReview
+>;
+type ListCommentsForReviewResponseDataType =
+  GetResponseDataTypeFromEndpointMethod<
+    typeof octokit.pulls.listCommentsForReview
+  >;
 type IssuesListCommentsResponseType = GetResponseTypeFromEndpointMethod<
   typeof octokit.issues.listComments
 >;
@@ -105,6 +112,7 @@ export async function syncGitHubRepo(
     repoSyncResult.requestsForMyReview = await syncRequestsForMyReview(
       repo,
       myGitHubUser,
+      settings,
       myPRsToSyncBuilder,
     );
     const myPRsToSync = myPRsToSyncBuilder;
@@ -137,6 +145,7 @@ export async function syncGitHubRepo(
 async function syncRequestsForMyReview(
   repo: RepoState,
   myGitHubUser: GitHubUser,
+  settings: Settings,
   myPRsToSyncBuilder: PullsListResponseDataType[0][],
 ) {
   const requestsForMyReviewBuilder = [] as ReviewRequest[];
@@ -151,10 +160,11 @@ async function syncRequestsForMyReview(
       } else {
         // Somebody else's PR
 
+        let myReviewRequested = false;
         for (const reviewer of pr.requested_reviewers) {
           if (reviewer.id === myGitHubUser.id) {
             const reviewRequestedUnixMillis =
-              await getLatestReviewRequestedEventTimestamp(
+              await getLatestMyReviewRequestedEventTimestamp(
                 pr,
                 repo,
                 myGitHubUser.id,
@@ -163,6 +173,38 @@ async function syncRequestsForMyReview(
               new PR(pr.html_url, pr.title),
               reviewRequestedUnixMillis,
             );
+            requestsForMyReviewBuilder.push(reviewRequest);
+            myReviewRequested = true;
+          }
+        }
+
+        if (!myReviewRequested && !settings.singleCommentIsReview) {
+          // Well, maybe my review was requested, but then I made a single comment and, voila, my
+          // review is not requested anymore!
+
+          if (!repo.lastSuccessfulSyncResult) {
+            // sorry if that's the first sync for the repo, nothing we can do about it.
+            continue;
+          }
+
+          if (
+            repo.lastSuccessfulSyncResult.requestsForMyReview.filter(
+              (r) => r.pr.url === pr.html_url,
+            ).length == 0
+          ) {
+            // we need previous sync as a baseline.
+            continue;
+          }
+
+          // My review was requested as of the last sync, but not anymore. Does it mean I just left
+          // a review? Maybe. Or I just left a single comment and that's being interpreted as a
+          // review by GitHub. See https://github.com/artie-shevchenko/my-turn-pr-review/issues/52
+          const reviewRequest = await maybeGetReviewRequest(
+            pr,
+            repo,
+            myGitHubUser,
+          );
+          if (reviewRequest) {
             requestsForMyReviewBuilder.push(reviewRequest);
           }
         }
@@ -173,7 +215,7 @@ async function syncRequestsForMyReview(
   return requestsForMyReviewBuilder;
 }
 
-async function getLatestReviewRequestedEventTimestamp(
+async function getLatestMyReviewRequestedEventTimestamp(
   pr: PullsListResponseDataType[0],
   repo: RepoState,
   myGitHubUserId: number,
@@ -189,6 +231,45 @@ async function getLatestReviewRequestedEventTimestamp(
     }
   }
   return result;
+}
+
+/** Returns a review request if I left no real review, just "Add a single comment" maybe. */
+async function maybeGetReviewRequest(
+  pr: PullsListResponseDataType[0],
+  repo: RepoState,
+  myGitHubUser: GitHubUser,
+) {
+  const lastMyReviewRequestedUnixMillis =
+    await getLatestMyReviewRequestedEventTimestamp(pr, repo, myGitHubUser.id);
+
+  const reviewsAfterMyLastReviewRequested = (
+    await listReviews(repo, pr.number)
+  ).filter(
+    (v) => new Date(v.submitted_at).getTime() > lastMyReviewRequestedUnixMillis,
+  );
+
+  for (const review of reviewsAfterMyLastReviewRequested) {
+    if (review.user.id !== myGitHubUser.id) {
+      continue;
+    }
+
+    if (review.body.length > 0) {
+      // That's a real review, not "Add a single comment".
+      return undefined;
+    }
+
+    const comments = await listCommentsForReview(repo, pr.number, review.id);
+    if (comments.length > 1) {
+      // That's a real review, not "Add a single comment".
+      return undefined;
+    }
+  }
+
+  // I left no real reviews after review requested, just "Add a single comment" "reviews".
+  return new ReviewRequest(
+    new PR(pr.html_url, pr.title),
+    lastMyReviewRequestedUnixMillis,
+  );
 }
 
 async function syncMyPR(pr: PullsListResponseDataType[0], repo: RepoState) {
@@ -456,6 +537,73 @@ async function listReviewsPage(
       return await listReviewsPage(
         repo,
         pullNumber,
+        pageNumber,
+        retryNumber + 1,
+      );
+    }
+  }
+}
+
+export async function listCommentsForReview(
+  repo: RepoState,
+  pullNumber: number,
+  reviewId: number,
+): Promise<ListCommentsForReviewResponseDataType[0][]> {
+  const result = [];
+  let pageNumber = 1;
+  let response: ListCommentsForReviewResponseType;
+  do {
+    response = await listCommentsForReviewPage(
+      repo,
+      pullNumber,
+      reviewId,
+      pageNumber,
+    );
+    for (const arrayElement of response.data) {
+      result.push(arrayElement as ListCommentsForReviewResponseDataType[0]);
+    }
+    pageNumber++;
+  } while (response.data.length >= REVIEW_COMMENTS_PER_PAGE);
+  return result;
+}
+
+async function listCommentsForReviewPage(
+  repo: RepoState,
+  pullNumber: number,
+  reviewId: number,
+  pageNumber: number,
+  retryNumber = 0,
+): Promise<ListCommentsForReviewResponseType> {
+  try {
+    // A little hack just to get repo owner and name:
+    const r = Repo.fromFullName(repo.fullName, RepoType.GITHUB);
+    if (retryNumber > 0) {
+      // exponential backoff:
+      await delay(1000 * Math.pow(2, retryNumber - 1));
+    }
+    await throttleGitHub();
+    return await octokit.pulls.listCommentsForReview({
+      owner: r.owner,
+      repo: r.name,
+      pull_number: pullNumber,
+      review_id: reviewId,
+      per_page: REVIEW_COMMENTS_PER_PAGE,
+      page: pageNumber,
+      headers: {
+        "X-GitHub-Api-Version": "2022-11-28",
+        // no caching:
+        "If-None-Match": "",
+      },
+    });
+  } catch (e) {
+    if (retryNumber > MAX_NUMBER_OF_RETRIES) {
+      console.error("The maximum number of retries reached");
+      throw e;
+    } else {
+      return await listCommentsForReviewPage(
+        repo,
+        pullNumber,
+        reviewId,
         pageNumber,
         retryNumber + 1,
       );
