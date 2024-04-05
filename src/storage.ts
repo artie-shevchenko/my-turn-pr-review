@@ -154,7 +154,7 @@ export async function deleteSettings() {
 
 const NO_PENDING_REVIEWS_TO_BE_MERGE_READY_DEFAULT = false;
 const COMMENT_EQUALS_CHANGES_REQUESTED_DEFAULT = true;
-const IGNORE_COMMENTS_MORE_THAN_X_DAYS_OLD_DEFAULT = 7;
+const IGNORE_COMMENTS_MORE_THAN_X_DAYS_OLD_DEFAULT = 5;
 
 export async function getSettings(): Promise<Settings> {
   const store = getBucket<Settings>("settings", "sync");
