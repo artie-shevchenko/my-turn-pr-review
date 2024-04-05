@@ -126,6 +126,10 @@ async function showSettings() {
   ) as HTMLInputElement;
   commentEqualsChangesRequestedCheckbox.checked =
     settings.commentEqualsChangesRequested;
+  const singleCommentIsReviewCheckbox = document.getElementById(
+    "singleCommentIsReviewSetting",
+  ) as HTMLInputElement;
+  singleCommentIsReviewCheckbox.checked = settings.singleCommentIsReview;
   const ignoreCommentsMoreThanXDaysOldInput = document.getElementById(
     "ignoreCommentsMoreThanXDaysOldSetting",
   ) as HTMLInputElement;
@@ -137,6 +141,7 @@ async function showSettings() {
       new Settings(
         ignoreMyPRsWithPendingReviewsCheckbox.checked,
         commentEqualsChangesRequestedCheckbox.checked,
+        singleCommentIsReviewCheckbox.checked,
         ignoreCommentsMoreThanXDaysOldInput.value.trim().length === 0
           ? 0
           : Number.parseInt(ignoreCommentsMoreThanXDaysOldInput.value),
@@ -147,6 +152,7 @@ async function showSettings() {
     "change",
     storeUISettings,
   );
+  singleCommentIsReviewCheckbox.addEventListener("change", storeUISettings);
   commentEqualsChangesRequestedCheckbox.addEventListener(
     "change",
     storeUISettings,
