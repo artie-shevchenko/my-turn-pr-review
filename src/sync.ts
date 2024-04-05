@@ -57,11 +57,6 @@ export async function trySyncWithCredentials(gitHubUser: GitHubUser) {
   syncInProgress = true;
   try {
     await sync(gitHubUser);
-  } catch (e) {
-    chrome.action.setIcon({
-      path: "icons/grey128.png",
-    });
-    throw e;
   } finally {
     syncInProgress = false;
   }
