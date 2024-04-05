@@ -15,6 +15,12 @@ import { Settings } from "./settings";
 import { octokit } from "./sync";
 
 const MAX_NUMBER_OF_RETRIES = 3;
+
+const ISSUE_COMMENTS_PER_PAGE = 100;
+const ISSUE_COMMENT_REACTIONS_PER_PAGE = 100;
+const ISSUE_EVENTS_PER_PAGE = 100;
+const PULL_COMMENTS_PER_PAGE = 100;
+const PULL_COMMENT_REACTIONS_PER_PAGE = 100;
 const PULLS_PER_PAGE = 100;
 const REVIEWS_PER_PAGE = 100;
 
@@ -117,7 +123,7 @@ export async function syncGitHubRepo(
         }
       }
       pageNumber++;
-    } while (pullsListResponse.data.length > 0);
+    } while (pullsListResponse.data.length >= PULLS_PER_PAGE);
     // If review request was withdrawn and then re-requested again the first request will be
     // (correctly) ignored:
     repoSyncResult.requestsForMyReview = requestsForMyReviewBuilder;
@@ -352,7 +358,7 @@ async function getLatestReviewRequestedEventTimestamp(
   let pageNumber = 1;
   let eventsListResponse: IssuesListEventsResponseType;
   do {
-    eventsListResponse = await listEvents(repo, pr.number, pageNumber);
+    eventsListResponse = await listIssueEvents(repo, pr.number, pageNumber);
     for (const arrayElement of eventsListResponse.data) {
       const event = arrayElement as IssuesListEventsResponseDataType[0];
       if (
@@ -363,7 +369,7 @@ async function getLatestReviewRequestedEventTimestamp(
       }
     }
     pageNumber++;
-  } while (eventsListResponse.data.length > 0);
+  } while (eventsListResponse.data.length >= ISSUE_EVENTS_PER_PAGE);
   return result;
 }
 
@@ -420,7 +426,7 @@ async function listReviews(
       owner: r.owner,
       repo: r.name,
       pull_number: pullNumber,
-      per_page: PULLS_PER_PAGE,
+      per_page: REVIEWS_PER_PAGE,
       page: pageNumber,
       headers: {
         "X-GitHub-Api-Version": "2022-11-28",
@@ -438,7 +444,7 @@ async function listReviews(
   }
 }
 
-async function listEvents(
+async function listIssueEvents(
   repo: RepoState,
   pullNumber: number,
   pageNumber: number,
@@ -456,6 +462,7 @@ async function listEvents(
       owner: r.owner,
       repo: r.name,
       issue_number: pullNumber,
+      per_page: ISSUE_EVENTS_PER_PAGE,
       page: pageNumber,
       headers: {
         "X-GitHub-Api-Version": "2022-11-28",
@@ -468,7 +475,12 @@ async function listEvents(
       console.error("The maximum number of retries reached");
       throw e;
     } else {
-      return await listEvents(repo, pullNumber, pageNumber, retryNumber + 1);
+      return await listIssueEvents(
+        repo,
+        pullNumber,
+        pageNumber,
+        retryNumber + 1,
+      );
     }
   }
 }
@@ -565,7 +577,7 @@ export async function getPullCommentsGroupedByIdOfFirstCommentInThread(
       }
     }
     pageNumber++;
-  } while (response.data.length > 0);
+  } while (response.data.length >= PULL_COMMENTS_PER_PAGE);
 
   return resultBuilder;
 }
@@ -587,6 +599,7 @@ async function listPullCommentsPageOrderedByIdAsc(
       owner: repoOwner,
       repo: repoName,
       pull_number: pullNumber,
+      per_page: PULL_COMMENTS_PER_PAGE,
       page: pageNumber,
       headers: {
         "X-GitHub-Api-Version": "2022-11-28",
@@ -629,7 +642,7 @@ async function listPullCommentReactions(
       result.push(arrayElement as PullsListReactionsResponseDataType[0]);
     }
     pageNumber++;
-  } while (response.data.length > 0);
+  } while (response.data.length >= PULL_COMMENT_REACTIONS_PER_PAGE);
   return result;
 }
 
@@ -650,6 +663,7 @@ async function listPullCommentReactionsPage(
       owner: repoOwner,
       repo: repoName,
       comment_id: commentId,
+      per_page: PULL_COMMENT_REACTIONS_PER_PAGE,
       page: pageNumber,
       headers: {
         "X-GitHub-Api-Version": "2022-11-28",
@@ -693,7 +707,7 @@ export async function getIssueCommentsSortedByCreatedAtAsc(
       resultBuilder.push(arrayElement);
     }
     pageNumber++;
-  } while (response.data.length > 0);
+  } while (response.data.length >= ISSUE_COMMENTS_PER_PAGE);
 
   return resultBuilder;
 }
@@ -715,6 +729,7 @@ async function listIssueCommentsPageOrderedByIdAsc(
       owner: repoOwner,
       repo: repoName,
       issue_number: issueNumber,
+      per_page: ISSUE_COMMENTS_PER_PAGE,
       page: pageNumber,
       headers: {
         "X-GitHub-Api-Version": "2022-11-28",
@@ -757,7 +772,7 @@ async function listIssueCommentReactions(
       result.push(arrayElement as IssuesListReactionsResponseDataType[0]);
     }
     pageNumber++;
-  } while (response.data.length > 0);
+  } while (response.data.length >= ISSUE_COMMENT_REACTIONS_PER_PAGE);
   return result;
 }
 
@@ -778,6 +793,7 @@ async function listIssueCommentReactionsPage(
       owner: repoOwner,
       repo: repoName,
       comment_id: commentId,
+      per_page: ISSUE_COMMENT_REACTIONS_PER_PAGE,
       page: pageNumber,
       headers: {
         "X-GitHub-Api-Version": "2022-11-28",
