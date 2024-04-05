@@ -4,6 +4,8 @@
 
 ### Installing and running
 
+Install [from Chrome web store](https://chromewebstore.google.com/detail/my-turn-github-pr-review/fmcpmjmkhfmljleacbccojadaodihjim) or manually:
+
 1. Clone the repository
 2. Run `npm install`
 3. Run `npm run start` for development mode, `npm run build` for production build
