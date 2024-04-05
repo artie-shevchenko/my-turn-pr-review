@@ -14,6 +14,7 @@ import { ReviewState } from "./reviewState";
 import { Settings } from "./settings";
 import { octokit } from "./sync";
 
+const MAX_NUMBER_OF_RETRIES = 3;
 const PULLS_PER_PAGE = 100;
 const REVIEWS_PER_PAGE = 100;
 
@@ -392,7 +393,7 @@ async function listPullRequests(
       },
     });
   } catch (e) {
-    if (retryNumber > 2) {
+    if (retryNumber > MAX_NUMBER_OF_RETRIES) {
       console.error("The maximum number of retries reached");
       throw e;
     } else {
@@ -428,7 +429,7 @@ async function listReviews(
       },
     });
   } catch (e) {
-    if (retryNumber > 2) {
+    if (retryNumber > MAX_NUMBER_OF_RETRIES) {
       console.error("The maximum number of retries reached");
       throw e;
     } else {
@@ -463,7 +464,7 @@ async function listEvents(
       },
     });
   } catch (e) {
-    if (retryNumber > 2) {
+    if (retryNumber > MAX_NUMBER_OF_RETRIES) {
       console.error("The maximum number of retries reached");
       throw e;
     } else {
@@ -517,7 +518,7 @@ async function listRecentNotificationsPage(
       },
     });
   } catch (e) {
-    if (retryNumber > 2) {
+    if (retryNumber > MAX_NUMBER_OF_RETRIES) {
       console.error("The maximum number of retries reached");
       throw e;
     } else {
@@ -594,7 +595,7 @@ async function listPullCommentsPageOrderedByIdAsc(
       },
     });
   } catch (e) {
-    if (retryNumber > 2) {
+    if (retryNumber > MAX_NUMBER_OF_RETRIES) {
       console.error("The maximum number of retries reached");
       throw e;
     } else {
@@ -657,7 +658,7 @@ async function listPullCommentReactionsPage(
       },
     });
   } catch (e) {
-    if (retryNumber > 2) {
+    if (retryNumber > MAX_NUMBER_OF_RETRIES) {
       console.error("The maximum number of retries reached");
       throw e;
     } else {
@@ -722,7 +723,7 @@ async function listIssueCommentsPageOrderedByIdAsc(
       },
     });
   } catch (e) {
-    if (retryNumber > 2) {
+    if (retryNumber > MAX_NUMBER_OF_RETRIES) {
       console.error("The maximum number of retries reached");
       throw e;
     } else {
@@ -785,7 +786,7 @@ async function listIssueCommentReactionsPage(
       },
     });
   } catch (e) {
-    if (retryNumber > 2) {
+    if (retryNumber > MAX_NUMBER_OF_RETRIES) {
       console.error("The maximum number of retries reached");
       throw e;
     } else {
