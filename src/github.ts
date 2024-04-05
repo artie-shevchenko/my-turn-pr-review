@@ -150,12 +150,18 @@ async function syncRequestsForMyReview(
         myPRsToSyncBuilder.push(pr);
       } else {
         // Somebody else's PR
+
         for (const reviewer of pr.requested_reviewers) {
           if (reviewer.id === myGitHubUser.id) {
-            const reviewRequest = await syncRequestForMyReview(
-              pr,
-              repo,
-              myGitHubUser.id,
+            const reviewRequestedUnixMillis =
+              await getLatestReviewRequestedEventTimestamp(
+                pr,
+                repo,
+                myGitHubUser.id,
+              );
+            const reviewRequest = new ReviewRequest(
+              new PR(pr.html_url, pr.title),
+              reviewRequestedUnixMillis,
             );
             requestsForMyReviewBuilder.push(reviewRequest);
           }
@@ -165,55 +171,6 @@ async function syncRequestsForMyReview(
     pageNumber++;
   } while (pullsListResponse.data.length >= PULLS_PER_PAGE);
   return requestsForMyReviewBuilder;
-}
-
-async function syncRequestForMyReview(
-  pr: PullsListResponseDataType[0],
-  repo: RepoState,
-  myGitHubUserId: number,
-): Promise<ReviewRequest> {
-  let reviewRequestedUnixMillis: number;
-  try {
-    reviewRequestedUnixMillis = await getLatestReviewRequestedEventTimestamp(
-      pr,
-      repo,
-      myGitHubUserId,
-    );
-  } catch (e) {
-    console.error(
-      "Couldn't get the real review_requested timestamp. Will use an approximation instead.",
-      e,
-    );
-  }
-
-  const url = pr.html_url;
-  let matchingReviewRequests = [] as ReviewRequest[];
-  if (
-    repo.lastSuccessfulSyncResult &&
-    repo.lastSuccessfulSyncResult.requestsForMyReview
-  ) {
-    matchingReviewRequests =
-      repo.lastSuccessfulSyncResult.requestsForMyReview.filter((existing) => {
-        const existingUrl = existing.pr.url;
-        return existingUrl === url;
-      });
-  }
-  // To have an up-to-date title:
-  const pullRequest = new PR(url, pr.title);
-  if (matchingReviewRequests.length == 0) {
-    return new ReviewRequest(
-      pullRequest,
-      reviewRequestedUnixMillis ? reviewRequestedUnixMillis : Date.now(),
-    );
-  } else {
-    const existingReviewRequest = matchingReviewRequests[0];
-    return new ReviewRequest(
-      pullRequest,
-      reviewRequestedUnixMillis
-        ? reviewRequestedUnixMillis
-        : existingReviewRequest.firstTimeObservedUnixMillis,
-    );
-  }
 }
 
 async function getLatestReviewRequestedEventTimestamp(
