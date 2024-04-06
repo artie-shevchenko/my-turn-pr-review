@@ -12,8 +12,10 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 });
 
 // Subscribe to an event so that Chrome runs our service worker on startup
-chrome.runtime.onStartup.addListener(() => {
-  console.log(`Service worker started`);
+chrome.runtime.onStartup.addListener(async () => {
+  (await getReposState()).updateIcon().then(() => {
+    console.log(`Service worker started`);
+  });
 });
 
 // This keeps the worker alive, as recommended by
@@ -26,4 +28,4 @@ setInterval(function () {
 
 setInterval(function () {
   trySync();
-}, 20000);
+}, 30000);
