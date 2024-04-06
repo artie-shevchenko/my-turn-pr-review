@@ -150,12 +150,24 @@ async function showSettings() {
   };
   ignoreMyPRsWithPendingReviewsCheckbox.addEventListener(
     "change",
-    storeUISettings,
+    async function () {
+      await storeUISettings();
+      const reposState = await getReposState();
+      await reposState.updateIcon();
+    },
   );
-  singleCommentIsReviewCheckbox.addEventListener("change", storeUISettings);
+  singleCommentIsReviewCheckbox.addEventListener("change", async function () {
+    await storeUISettings();
+    const reposState = await getReposState();
+    await reposState.updateIcon();
+  });
   commentEqualsChangesRequestedCheckbox.addEventListener(
     "change",
-    storeUISettings,
+    async function () {
+      await storeUISettings();
+      const reposState = await getReposState();
+      await reposState.updateIcon();
+    },
   );
   ignoreCommentsMoreThanXDaysOldInput.addEventListener(
     "change",
@@ -164,6 +176,7 @@ async function showSettings() {
       const reposState = await getReposState();
       await reposState.updateIcon();
       // Probably better not to trigger sync not to be throttled for GitHub notification API call.
+      // There are some stricter secondary limits around notifications.
     },
   );
 }

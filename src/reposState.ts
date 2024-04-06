@@ -1,4 +1,8 @@
-import { CommentBlock, NotMyTurnBlock } from "./notMyTurnBlock";
+import {
+  CommentBlock,
+  NotMyTurnBlock,
+  NotMyTurnReviewRequestBlock,
+} from "./notMyTurnBlock";
 import { Repo } from "./repo";
 import { RepoState } from "./repoState";
 import { Settings } from "./settings";
@@ -7,6 +11,7 @@ import {
   getLastSyncDurationMillis,
   getMonitoringEnabledRepos,
   getNotMyTurnBlockList,
+  getNotMyTurnReviewRequestBlockList,
   getSettings,
 } from "./storage";
 
@@ -27,6 +32,7 @@ export class ReposState {
   async updateIcon(
     monitoringEnabledRepos: Repo[] = undefined,
     notMyTurnBlocks: NotMyTurnBlock[] = undefined,
+    notMyTurnReviewRequestBlocks: NotMyTurnReviewRequestBlock[] = undefined,
     commentBlocks: CommentBlock[] = undefined,
     settings: Settings = undefined,
   ): Promise<SyncStatus> {
@@ -35,6 +41,9 @@ export class ReposState {
     }
     if (!notMyTurnBlocks) {
       notMyTurnBlocks = await getNotMyTurnBlockList();
+    }
+    if (!notMyTurnReviewRequestBlocks) {
+      notMyTurnReviewRequestBlocks = await getNotMyTurnReviewRequestBlockList();
     }
     if (!commentBlocks) {
       commentBlocks = await getCommentBlockList();
@@ -66,6 +75,7 @@ export class ReposState {
         syncStatus,
         repoState.getSyncStatus(
           notMyTurnBlocks,
+          notMyTurnReviewRequestBlocks,
           commentBlocks,
           settings,
           lastSyncDurationMillis,

@@ -1,19 +1,63 @@
+import { NotMyTurnReviewRequestBlock } from "./notMyTurnBlock";
+import { Settings } from "./settings";
 import { PR } from "./PR";
+
+export enum ReasonNotIgnored {
+  // See https://github.com/artie-shevchenko/my-turn-pr-review/issues/52
+  LIKELY_JUST_SINGLE_COMMENT,
+}
 
 export class ReviewRequest {
   pr: PR;
-  // normally that's exactly when the review was requested but as a fallback it may use the time
-  // when Chrome extension first observed this request:
+  // #NOT_MATURE: that's basically reviewRequestedAtUnixMillis (it used to be more complicated in
+  // the past):
   firstTimeObservedUnixMillis: number;
+  reasonNotIgnored: ReasonNotIgnored | undefined;
   // #NOT_MATURE: lazily populated in popup.ts:
   repoFullName: string;
 
-  constructor(pr: PR, firstTimeObservedUnixMillis: number) {
+  constructor(
+    pr: PR,
+    firstTimeObservedUnixMillis: number,
+    reasonNotIgnored = undefined as ReasonNotIgnored,
+  ) {
     this.pr = pr;
     this.firstTimeObservedUnixMillis = firstTimeObservedUnixMillis;
+    this.reasonNotIgnored = reasonNotIgnored;
+  }
+
+  reviewRequestedAtUnixMillis() {
+    return this.firstTimeObservedUnixMillis;
   }
 
   static of(v: ReviewRequest): ReviewRequest {
-    return new ReviewRequest(v.pr, v.firstTimeObservedUnixMillis);
+    return new ReviewRequest(
+      v.pr,
+      v.firstTimeObservedUnixMillis,
+      v.reasonNotIgnored,
+    );
+  }
+
+  isMyTurn(
+    notMyTurnReviewRequestBlocks: NotMyTurnReviewRequestBlock[],
+    settings: Settings,
+  ) {
+    if (
+      settings.singleCommentIsReview &&
+      this.reasonNotIgnored === ReasonNotIgnored.LIKELY_JUST_SINGLE_COMMENT
+    ) {
+      return false;
+    }
+
+    return !notMyTurnReviewRequestBlocks.some((block) =>
+      this.isBlockedBy(block),
+    );
+  }
+
+  isBlockedBy(block: NotMyTurnReviewRequestBlock): boolean {
+    return (
+      this.reviewRequestedAtUnixMillis() ===
+        block.reviewRequestedAtUnixMillis && this.pr.url === block.prUrl
+    );
   }
 }

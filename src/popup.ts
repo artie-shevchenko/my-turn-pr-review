@@ -1,8 +1,13 @@
 import "../styles/popup.scss";
 import { Octokit } from "@octokit/rest";
+import { ReasonNotIgnored } from "./reviewRequest";
 import { trySyncWithCredentials } from "./sync";
 import { GitHubUser } from "./gitHubUser";
-import { CommentBlock, NotMyTurnBlock } from "./notMyTurnBlock";
+import {
+  CommentBlock,
+  NotMyTurnBlock,
+  NotMyTurnReviewRequestBlock,
+} from "./notMyTurnBlock";
 import { Repo } from "./repo";
 import { RepoState } from "./repoState";
 import { ReviewState } from "./reviewState";
@@ -10,11 +15,13 @@ import { Settings } from "./settings";
 import {
   addCommentBlock,
   addNotMyTurnBlock,
+  addNotMyTurnReviewRequestBlock,
   getCommentBlockList,
   getGitHubUser,
   getLastSyncDurationMillis,
   getMonitoringEnabledRepos,
   getNotMyTurnBlockList,
+  getNotMyTurnReviewRequestBlockList,
   getReposState,
   getSettings,
   storeGitHubUser,
@@ -135,11 +142,14 @@ async function updatePopupPage() {
   const reposState = await getReposState();
   const repos: Repo[] = await getMonitoringEnabledRepos();
   const notMyTurnPrBlocks = await getNotMyTurnBlockList();
+  const notMyTurnReviewRequestBlocks =
+    await getNotMyTurnReviewRequestBlockList();
   const commentBlocks = await getCommentBlockList();
   const settings = await getSettings();
   await reposState.updateIcon(
     repos,
     notMyTurnPrBlocks,
+    notMyTurnReviewRequestBlocks,
     commentBlocks,
     settings,
   );
@@ -186,6 +196,7 @@ async function updatePopupPage() {
     syncFailureRepos,
     unsyncedRepos,
     notMyTurnPrBlocks,
+    notMyTurnReviewRequestBlocks,
     commentBlocks,
     settings,
   );
@@ -218,9 +229,20 @@ async function populateFromState(
   syncFailureRepos: RepoState[],
   unsyncedRepos: Repo[],
   notMyTurnBlocks: NotMyTurnBlock[],
+  notMyTurnReviewRequestBlocks: NotMyTurnReviewRequestBlock[],
   commentBlocks: CommentBlock[],
   settings: Settings,
 ) {
+  // Reset to default style (column widths):
+  for (const titleTd of document.getElementsByClassName(
+    "theirPrTitleColumnIfNotMyTurnEnabled",
+  )) {
+    titleTd.className = "theirPrTitleColumn";
+  }
+  document.getElementById(
+    "notMyTurnMyReviewRequestHeaderColumn",
+  ).style.display = "none";
+
   const repoWarnSection = document.getElementById("repoWarn");
   let badCredentialsErrorsOnly = false;
   if (syncFailureRepos.length > 0) {
@@ -304,8 +326,12 @@ async function populateFromState(
         return v;
       });
     })
+    .filter((reviewRequest) =>
+      reviewRequest.isMyTurn(notMyTurnReviewRequestBlocks, settings),
+    )
     .sort(
-      (a, b) => a.firstTimeObservedUnixMillis - b.firstTimeObservedUnixMillis,
+      (a, b) =>
+        a.reviewRequestedAtUnixMillis() - b.reviewRequestedAtUnixMillis(),
     );
 
   const myPRs = syncSuccessRepos
@@ -366,23 +392,55 @@ async function populateFromState(
     const row = reviewRequestedTable.insertRow(i + 1); // Insert rows starting from index 1
 
     const repoCell = row.insertCell(0);
-    repoCell.innerHTML = requestsForMyReviews[i].repoFullName;
+    const reviewRequest = requestsForMyReviews[i];
+    repoCell.innerHTML = reviewRequest.repoFullName;
     repoCell.className = "repoColumn";
 
     const prCell = row.insertCell(1);
     prCell.innerHTML =
       "<a href = '" +
-      requestsForMyReviews[i].pr.url +
+      reviewRequest.pr.url +
       "' target='_blank'>" +
-      requestsForMyReviews[i].pr.name +
+      reviewRequest.pr.name +
       "</a>";
 
     const hoursCell = row.insertCell(2);
     hoursCell.innerHTML =
       Math.floor(
-        (Date.now() - requestsForMyReviews[i].firstTimeObservedUnixMillis) /
+        (Date.now() - reviewRequest.reviewRequestedAtUnixMillis()) /
           (1000 * 60 * 60),
       ) + "h";
+
+    if (
+      reviewRequest.reasonNotIgnored ===
+      ReasonNotIgnored.LIKELY_JUST_SINGLE_COMMENT
+    ) {
+      const notMyTurnCell = row.insertCell(3);
+      notMyTurnCell.align = "center";
+      notMyTurnCell.innerHTML =
+        '<img src="icons/xMark16.png" style="cursor: pointer; width: 12px;" id="notMyTurnReviewRequest' +
+        i +
+        '" alt="Not my turn" title="Not my turn / Ignore"/>';
+      document.getElementById(
+        "notMyTurnMyReviewRequestHeaderColumn",
+      ).style.display = "";
+      for (const titleTd of document.getElementsByClassName(
+        "theirPrTitleColumn",
+      )) {
+        // Need different width because column header title is huge.
+        titleTd.className = "theirPrTitleColumnIfNotMyTurnEnabled";
+      }
+      document
+        .getElementById("notMyTurnReviewRequest" + i)
+        .addEventListener("click", () => {
+          addNotMyTurnReviewRequestBlock(
+            new NotMyTurnReviewRequestBlock(
+              reviewRequest.pr.url,
+              reviewRequest.reviewRequestedAtUnixMillis(),
+            ),
+          ).then(() => updatePopupPage());
+        });
+    }
   }
 
   // Iterate over the myPRs array and create rows for each entry

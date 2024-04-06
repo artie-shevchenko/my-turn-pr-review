@@ -9,7 +9,7 @@ import { PR } from "./PR";
 import { Repo, RepoType } from "./repo";
 import { RepoState } from "./repoState";
 import { RepoSyncResult } from "./repoSyncResult";
-import { ReviewRequest } from "./reviewRequest";
+import { ReasonNotIgnored, ReviewRequest } from "./reviewRequest";
 import { ReviewState } from "./reviewState";
 import { Settings } from "./settings";
 import { octokit } from "./sync";
@@ -163,7 +163,7 @@ async function syncRequestsForMyReview(
         let myReviewRequested = false;
         for (const reviewer of pr.requested_reviewers) {
           if (reviewer.id === myGitHubUser.id) {
-            const reviewRequestedUnixMillis =
+            const reviewRequestedAtUnixMillis =
               await getLatestMyReviewRequestedEventTimestamp(
                 pr,
                 repo,
@@ -171,14 +171,14 @@ async function syncRequestsForMyReview(
               );
             const reviewRequest = new ReviewRequest(
               new PR(pr.html_url, pr.title),
-              reviewRequestedUnixMillis,
+              reviewRequestedAtUnixMillis,
             );
             requestsForMyReviewBuilder.push(reviewRequest);
             myReviewRequested = true;
           }
         }
 
-        if (!myReviewRequested && !settings.singleCommentIsReview) {
+        if (!myReviewRequested) {
           // Well, maybe my review was requested, but then I made a single comment and, voila, my
           // review is not requested anymore!
 
@@ -192,11 +192,10 @@ async function syncRequestsForMyReview(
               (r) => r.pr.url === pr.html_url,
             ).length == 0
           ) {
-            // we need previous sync as a baseline.
             continue;
           }
-
-          // My review was requested as of the last sync, but not anymore. Does it mean I just left
+          // My review was requested at some point in the past. PR is open.
+          // My review technically not requested anymore. Does it mean I left
           // a review? Maybe. Or I just left a single comment and that's being interpreted as a
           // review by GitHub. See https://github.com/artie-shevchenko/my-turn-pr-review/issues/52
           const reviewRequest = await maybeGetReviewRequest(
@@ -265,10 +264,12 @@ async function maybeGetReviewRequest(
     }
   }
 
-  // I left no real reviews after review requested, just "Add a single comment" "reviews".
+  // I left no real reviews after review requested, just "Add a single comment" "reviews" (or a
+  // review that is indistinguishable from it.
   return new ReviewRequest(
     new PR(pr.html_url, pr.title),
     lastMyReviewRequestedUnixMillis,
+    ReasonNotIgnored.LIKELY_JUST_SINGLE_COMMENT,
   );
 }
 

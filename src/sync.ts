@@ -6,7 +6,11 @@ import {
   resetGitHubCallsCounter,
   syncGitHubRepo,
 } from "./github";
-import { CommentBlock, NotMyTurnBlock } from "./notMyTurnBlock";
+import {
+  CommentBlock,
+  NotMyTurnBlock,
+  NotMyTurnReviewRequestBlock,
+} from "./notMyTurnBlock";
 import { Repo } from "./repo";
 import { ReposState } from "./reposState";
 import { RepoState } from "./repoState";
@@ -14,12 +18,14 @@ import {
   getCommentBlockList,
   getGitHubUser,
   getNotMyTurnBlockList,
+  getNotMyTurnReviewRequestBlockList,
   getRepos,
   getRepoStateByFullName,
   getSettings,
   storeCommentBlockList,
   storeLastSyncDurationMillis,
   storeNotMyTurnBlockList,
+  storeNotMyTurnReviewRequestBlockList,
   storeRepoStateMap,
 } from "./storage";
 
@@ -67,6 +73,8 @@ export async function trySyncWithCredentials(gitHubUser: GitHubUser) {
  */
 export async function sync(myGitHubUser: GitHubUser) {
   const prBlocksAtSyncStart = await getNotMyTurnBlockList();
+  const reviewRequestBlocksAtSyncStart =
+    await getNotMyTurnReviewRequestBlockList();
   const commentBlocksAtSyncStart = await getCommentBlockList();
 
   resetGitHubCallsCounter();
@@ -118,6 +126,19 @@ export async function sync(myGitHubUser: GitHubUser) {
     maybeCleanUpObsoletePrBlocks(
       reposState.asArray(),
       prBlocksNow,
+      monitoringDisabledRepos,
+    );
+  }
+
+  const reviewRequestBlocksNow = await getNotMyTurnReviewRequestBlockList();
+  if (reviewRequestBlocksNow.length === reviewRequestBlocksAtSyncStart.length) {
+    const monitoringDisabledRepos = allReposIncludingDisabled.filter(
+      (v) => !v.monitoringEnabled,
+    );
+    // In background:
+    maybeCleanUpObsoleteReviewRequestBlocks(
+      reposState.asArray(),
+      reviewRequestBlocksNow,
       monitoringDisabledRepos,
     );
   }
@@ -175,6 +196,41 @@ async function maybeCleanUpObsoletePrBlocks(
 
   if (notMyTurnBlocksFromStorage.length != activeBlocksBuilder.size) {
     return storeNotMyTurnBlockList([...activeBlocksBuilder]);
+  }
+}
+
+async function maybeCleanUpObsoleteReviewRequestBlocks(
+  repoStates: RepoState[],
+  notMyTurnReviewRequestBlocks: NotMyTurnReviewRequestBlock[],
+  monitoringDisabledRepos: Repo[],
+) {
+  if (Math.random() > 0.01) {
+    return;
+  }
+
+  if (repoStates.some((r) => r.lastSyncResult.errorMsg)) {
+    return;
+  }
+
+  const activeBlocksBuilder = new Set<NotMyTurnReviewRequestBlock>();
+  for (const repoState of repoStates) {
+    for (const reviewRequest of repoState.lastSyncResult.requestsForMyReview) {
+      notMyTurnReviewRequestBlocks
+        .filter((block) => reviewRequest.isBlockedBy(block))
+        .forEach((block) => activeBlocksBuilder.add(block));
+    }
+  }
+
+  // Preserve blocks in case monitoring for a repo is temporary disabled and then re-enabled:
+  for (const repo of monitoringDisabledRepos) {
+    notMyTurnReviewRequestBlocks
+      // #NOT_MATURE: yes there's a low chance of false positives but that's okay:
+      .filter((v) => v.prUrl.includes(repo.fullName()))
+      .forEach((v) => activeBlocksBuilder.add(v));
+  }
+
+  if (notMyTurnReviewRequestBlocks.length != activeBlocksBuilder.size) {
+    return storeNotMyTurnReviewRequestBlockList([...activeBlocksBuilder]);
   }
 }
 

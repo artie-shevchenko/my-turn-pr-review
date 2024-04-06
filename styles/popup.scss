@@ -42,8 +42,14 @@ td {
 .notMyTurnColumn {
   width: 42px;
 }
+.notMyTurnReviewRequestedColumn {
+  width: 80px;
+}
 .theirPrTitleColumn {
   width: 60%;
+}
+.theirPrTitleColumnIfNotMyTurnEnabled {
+  width: 45%;
 }
 .myPrTitleColumn {
   width: 60%;

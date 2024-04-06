@@ -2,7 +2,11 @@ import { getBucket } from "@extend-chrome/storage";
 import { ReposState } from "./reposState";
 import { Settings } from "./settings";
 import { GitHubUser } from "./gitHubUser";
-import { CommentBlock, NotMyTurnBlock } from "./notMyTurnBlock";
+import {
+  CommentBlock,
+  NotMyTurnBlock,
+  NotMyTurnReviewRequestBlock,
+} from "./notMyTurnBlock";
 import { Repo } from "./repo";
 import { RepoState } from "./repoState";
 
@@ -197,6 +201,8 @@ export async function getSettings(): Promise<Settings> {
   );
 }
 
+const MAX_ITEM_BYTES_IN_SYNC_STORAGE = 8000 / 2; // to be on a safe side
+
 // NotMyTurnBlock storage:
 
 class NotMyTurnBlockList {
@@ -208,7 +214,6 @@ class NotMyTurnBlockList {
 }
 
 const NOT_MY_TURN_BLOCK_LIST_KEY_BASE = "notMyTurnBlockList";
-const MAX_ITEM_BYTES_IN_SYNC_STORAGE = 8000 / 2; // to be on a safe side
 
 export async function addNotMyTurnBlock(block: NotMyTurnBlock) {
   return getNotMyTurnBlockList().then((list) => {
@@ -266,6 +271,98 @@ export async function getNotMyTurnBlockList(): Promise<NotMyTurnBlock[]> {
     const list = await store.get();
     if (list && list.notMyTurnBlockList) {
       resultBuilder.push(...list.notMyTurnBlockList);
+    } else {
+      break;
+    }
+    chunkIndex++;
+  }
+  return resultBuilder;
+}
+
+// NotMyTurnReviewRequestBlock storage:
+
+class NotMyTurnReviewRequestBlockList {
+  notMyTurnReviewRequestBlockList: NotMyTurnReviewRequestBlock[];
+
+  constructor(notMyTurnReviewRequestBlockList: NotMyTurnReviewRequestBlock[]) {
+    this.notMyTurnReviewRequestBlockList = notMyTurnReviewRequestBlockList;
+  }
+}
+
+const NOT_MY_TURN_REVIEW_REQUEST_BLOCK_LIST_KEY_BASE =
+  "notMyTurnReviewRequestBlockList";
+
+export async function addNotMyTurnReviewRequestBlock(
+  block: NotMyTurnReviewRequestBlock,
+) {
+  return getNotMyTurnReviewRequestBlockList().then((list) => {
+    list.push(block);
+    return storeNotMyTurnReviewRequestBlockList(list);
+  });
+}
+
+export async function storeNotMyTurnReviewRequestBlockList(
+  list: NotMyTurnReviewRequestBlock[],
+) {
+  const chunks = splitReviewRequestBlockArray(
+    list,
+    MAX_ITEM_BYTES_IN_SYNC_STORAGE,
+  );
+  for (let i = 0; i < chunks.length; i++) {
+    const store = getBucket<NotMyTurnReviewRequestBlockList>(
+      NOT_MY_TURN_REVIEW_REQUEST_BLOCK_LIST_KEY_BASE + i,
+      "sync",
+    );
+    await store.set(chunks[i]);
+  }
+  const store = getBucket<NotMyTurnReviewRequestBlockList>(
+    NOT_MY_TURN_REVIEW_REQUEST_BLOCK_LIST_KEY_BASE + chunks.length,
+    "sync",
+  );
+  await store.clear;
+}
+
+function splitReviewRequestBlockArray(
+  blocks: NotMyTurnReviewRequestBlock[],
+  maxBytes: number,
+): NotMyTurnReviewRequestBlockList[] {
+  const resultBuilder = [] as NotMyTurnReviewRequestBlockList[];
+  let itemBuilder = [] as NotMyTurnReviewRequestBlock[];
+  for (const block of blocks) {
+    if (
+      getReviewRequestBlockBytes(itemBuilder) +
+        getReviewRequestBlockBytes([block]) >
+      maxBytes
+    ) {
+      resultBuilder.push(new NotMyTurnReviewRequestBlockList(itemBuilder));
+      itemBuilder = [];
+    }
+    itemBuilder.push(block);
+  }
+  resultBuilder.push(new NotMyTurnReviewRequestBlockList(itemBuilder));
+  return resultBuilder;
+}
+
+function getReviewRequestBlockBytes(
+  notMyTurnReviewRequestBlockList: NotMyTurnReviewRequestBlock[],
+) {
+  return new Blob([JSON.stringify(notMyTurnReviewRequestBlockList)]).size;
+}
+
+export async function getNotMyTurnReviewRequestBlockList(): Promise<
+  NotMyTurnReviewRequestBlock[]
+> {
+  const resultBuilder = [] as NotMyTurnReviewRequestBlock[];
+  let chunkIndex = 0;
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const store = getBucket<NotMyTurnReviewRequestBlockList>(
+      NOT_MY_TURN_REVIEW_REQUEST_BLOCK_LIST_KEY_BASE + chunkIndex,
+      "sync",
+    );
+    const list = await store.get();
+    if (list && list.notMyTurnReviewRequestBlockList) {
+      resultBuilder.push(...list.notMyTurnReviewRequestBlockList);
     } else {
       break;
     }
