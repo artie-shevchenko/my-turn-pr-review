@@ -1,12 +1,12 @@
 {
   "name": "My Turn - GitHub PR Review",
   "description": "Never miss a Pull Request that needs your attention, with minimal distractions. Inspired by internal Google tool - \"Your Turn\".",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "manifest_version": 3,
   "background": {
     "service_worker": "serviceWorker.js"
   },
-  "permissions": ["storage"],
+  "permissions": ["alarms","storage"],
   "options_ui": {
     "page": "options.html",
     "open_in_tab": true

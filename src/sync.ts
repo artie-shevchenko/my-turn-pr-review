@@ -32,7 +32,7 @@ import {
 export async function trySync() {
   return getGitHubUser()
     .then((gitHubUser) => {
-      trySyncWithCredentials(gitHubUser);
+      return trySyncWithCredentials(gitHubUser);
     })
     .catch((e) => {
       console.error("Sync failed", e);

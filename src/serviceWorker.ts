@@ -1,5 +1,4 @@
 import { trySync } from "./sync";
-import { getReposState } from "./storage";
 
 chrome.runtime.onInstalled.addListener(async (details) => {
   if (details.reason == "install") {
@@ -11,21 +10,31 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   }
 });
 
-// Subscribe to an event so that Chrome runs our service worker on startup
-chrome.runtime.onStartup.addListener(async () => {
-  (await getReposState()).updateIcon().then(() => {
-    console.log(`Service worker started`);
-  });
-});
+async function checkAlarmState() {
+  const alarm = await chrome.alarms.get("sync-alarm");
 
-// This keeps the worker alive, as recommended by
-// https://developer.chrome.com/blog/longer-esw-lifetimes/
-setInterval(function () {
-  getReposState().then(() => {
-    console.log("heart beat");
-  });
-}, 10000);
+  if (!alarm) {
+    console.log("Alarm not found, creating...");
+    await chrome.alarms.create("sync-alarm", { periodInMinutes: 0.5 });
+  }
 
-setInterval(function () {
-  trySync();
-}, 30000);
+  const hasListeners = await chrome.alarms.onAlarm.hasListeners();
+  if (!hasListeners) {
+    console.log("Alarm listener not found, creating...");
+    await chrome.alarms.onAlarm.addListener(() => {
+      waitUntil(trySync());
+    });
+  }
+}
+
+// https://developer.chrome.com/docs/extensions/develop/migrate/to-service-workers#keep_a_service_worker_alive_until_a_long-running_operation_is_finished
+async function waitUntil(promise: Promise<void>) {
+  const keepAlive = setInterval(chrome.runtime.getPlatformInfo, 25 * 1000);
+  try {
+    await promise;
+  } finally {
+    clearInterval(keepAlive);
+  }
+}
+
+checkAlarmState();
