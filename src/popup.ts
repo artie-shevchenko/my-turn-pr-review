@@ -264,7 +264,7 @@ async function populateFromState(
               )
             ) {
               message +=
-                ' <a href="https://github.com/settings/tokens" target="_blank">Configure SSO (authorize the access token)</a>.<br/>' +
+                ' <a href="https://github.com/settings/tokens" target="_blank">Configure SSO (authorize the access token)</a>.<br/> If that\'s already done just wait for a next sync with GitHub to complete - these are the errors messages for the last sync (see timestamp below).<br/>' +
                 '<img src="configure-sso-instructions-later.png" style="border: 1px solid #555; width: 600px;" alt="Grant access to all the necessary organizations">';
             }
             return message;
