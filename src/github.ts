@@ -170,7 +170,7 @@ async function syncRequestsForMyReview(
                 myGitHubUser.id,
               );
             const reviewRequest = new ReviewRequest(
-              new PR(pr.html_url, pr.title),
+              new PR(pr.html_url, pr.title, pr.draft),
               reviewRequestedAtUnixMillis,
             );
             requestsForMyReviewBuilder.push(reviewRequest);
@@ -252,13 +252,13 @@ async function maybeGetReviewRequest(
       continue;
     }
 
-    if (review.body.length > 0) {
+    if (review.body.length > 0 || review.state !== "COMMENTED") {
       // That's a real review, not "Add a single comment".
       return undefined;
     }
 
     const comments = await listCommentsForReview(repo, pr.number, review.id);
-    if (comments.length > 1) {
+    if (comments.length !== 1) {
       // That's a real review, not "Add a single comment".
       return undefined;
     }
@@ -267,7 +267,7 @@ async function maybeGetReviewRequest(
   // I left no real reviews after review requested, just "Add a single comment" "reviews" (or a
   // review that is indistinguishable from it.
   return new ReviewRequest(
-    new PR(pr.html_url, pr.title),
+    new PR(pr.html_url, pr.title, pr.draft),
     lastMyReviewRequestedUnixMillis,
     ReasonNotIgnored.LIKELY_JUST_SINGLE_COMMENT,
   );
@@ -275,9 +275,7 @@ async function maybeGetReviewRequest(
 
 async function syncMyPR(pr: PullsListResponseDataType[0], repo: RepoState) {
   const reviewsRequested = pr.requested_reviewers.map((reviewer) => {
-    const url = pr.html_url;
-    // To have an up-to-date title:
-    const pullRequest = new PR(url, pr.title);
+    const pullRequest = new PR(pr.html_url, pr.title, pr.draft);
     return new ReviewRequestOnMyPR(pullRequest, reviewer.id);
   });
 
@@ -287,7 +285,7 @@ async function syncMyPR(pr: PullsListResponseDataType[0], repo: RepoState) {
     pr.number,
   );
 
-  const prObj = new PR(pr.html_url, pr.title);
+  const prObj = new PR(pr.html_url, pr.title, pr.draft);
   const reviewsReceived = reviews.map((review) => {
     const state = review.state;
     const typedState = state as keyof typeof ReviewState;

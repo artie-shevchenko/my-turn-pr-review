@@ -448,7 +448,8 @@ async function populateFromState(
       });
     } else if (
       reviewRequest.reasonNotIgnored ===
-      ReasonNotIgnored.LIKELY_JUST_SINGLE_COMMENT
+        ReasonNotIgnored.LIKELY_JUST_SINGLE_COMMENT ||
+      reviewRequest.pr.isDraft
     ) {
       // #NOT_MATURE: partially duplicated above:
       const notMyTurnCell = row.insertCell(3);
