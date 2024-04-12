@@ -32,16 +32,14 @@ document.getElementById("go-to-options").addEventListener("click", () => {
   chrome.runtime.openOptionsPage();
 });
 
-document
-  .getElementById("hideRepliesAndMentions")
-  .addEventListener("click", () => {
-    getSettings().then((settings) => {
-      document.getElementById("repliesAndMentions").style.display = "none";
-      document.getElementById("commentsTable").style.display = "none";
-      settings.ignoreCommentsMoreThanXDaysOld = 0;
-      return storeSettings(settings);
-    });
+document.getElementById("hideComments").addEventListener("click", () => {
+  getSettings().then((settings) => {
+    document.getElementById("commentsDiv").style.display = "none";
+    document.getElementById("commentsTable").style.display = "none";
+    settings.ignoreCommentsMoreThanXDaysOld = 0;
+    return storeSettings(settings);
   });
+});
 
 document.getElementById("tokenForm").addEventListener("submit", (e) => {
   e.preventDefault();
@@ -362,20 +360,20 @@ async function populateFromState(
       return a.createdAtUnixMillis - b.createdAtUnixMillis;
     });
 
-  const reviewRequestedTable = document.getElementById(
+  const myReviewRequestedTable = document.getElementById(
     "myReviewRequestedPrTable",
   ) as HTMLTableElement;
-  deleteAllRows(reviewRequestedTable);
+  deleteAllRows(myReviewRequestedTable);
 
-  reviewRequestedTable.style.display =
+  myReviewRequestedTable.style.display =
     requestsForMyReviews.length == 0 ? "none" : "";
   const myPRsTable = document.getElementById("myPrTable") as HTMLTableElement;
   myPRsTable.style.display = myPRs.length == 0 ? "none" : "";
   deleteAllRows(myPRsTable);
 
-  const repliesAndMentions = document.getElementById("repliesAndMentions");
+  const commentsDiv = document.getElementById("commentsDiv");
   if (settings.ignoreCommentsMoreThanXDaysOld === 0) {
-    repliesAndMentions.style.display = "none";
+    commentsDiv.style.display = "none";
   }
 
   const commentsTable = document.getElementById(
@@ -389,7 +387,7 @@ async function populateFromState(
 
   // Iterate over the requestsForMyReviews array and create rows for each entry
   for (let i = 0; i < requestsForMyReviews.length; i++) {
-    const row = reviewRequestedTable.insertRow(i + 1); // Insert rows starting from index 1
+    const row = myReviewRequestedTable.insertRow(i + 1); // Insert rows starting from index 1
 
     const repoCell = row.insertCell(0);
     const reviewRequest = requestsForMyReviews[i];
