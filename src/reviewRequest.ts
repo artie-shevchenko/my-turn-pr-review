@@ -13,6 +13,8 @@ export class ReviewRequest {
   // the past):
   firstTimeObservedUnixMillis: number;
   reasonNotIgnored: ReasonNotIgnored | undefined;
+  // if present then it's a review request for my team, not for me personally:
+  teamName: string | undefined;
   // #NOT_MATURE: lazily populated in popup.ts:
   repoFullName: string;
 
@@ -59,5 +61,9 @@ export class ReviewRequest {
       this.reviewRequestedAtUnixMillis() ===
         block.reviewRequestedAtUnixMillis && this.pr.url === block.prUrl
     );
+  }
+
+  isTeamReviewRequest(): boolean {
+    return this.teamName !== undefined;
   }
 }

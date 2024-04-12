@@ -317,7 +317,8 @@ async function populateFromState(
       ".";
   }
 
-  const requestsForMyReviews = syncSuccessRepos
+  // strictly speaking these are not necessarily requestsForMyReview, see below
+  const sortedReviewRequests = syncSuccessRepos
     .flatMap((repo) => {
       return repo.lastSuccessfulSyncResult.requestsForMyReview.map((v) => {
         v.repoFullName = repo.fullName;
@@ -331,6 +332,12 @@ async function populateFromState(
       (a, b) =>
         a.reviewRequestedAtUnixMillis() - b.reviewRequestedAtUnixMillis(),
     );
+  const requestsForMyReview = sortedReviewRequests.filter(
+    (reviewRequest) => !reviewRequest.isTeamReviewRequest(),
+  );
+  const requestsForMyTeamReview = sortedReviewRequests.filter((reviewRequest) =>
+    reviewRequest.isTeamReviewRequest(),
+  );
 
   const myPRs = syncSuccessRepos
     .flatMap((repo) => {
@@ -364,9 +371,17 @@ async function populateFromState(
     "myReviewRequestedPrTable",
   ) as HTMLTableElement;
   deleteAllRows(myReviewRequestedTable);
-
   myReviewRequestedTable.style.display =
-    requestsForMyReviews.length == 0 ? "none" : "";
+    requestsForMyReview.length == 0 ? "none" : "";
+
+  const myTeamReviewRequestedTable = document.getElementById(
+    "myTeamReviewRequestedPrTable",
+  ) as HTMLTableElement;
+  deleteAllRows(myTeamReviewRequestedTable);
+  // don't even show h2 header if there are no team review requests:
+  document.getElementById("teamReviewDiv").style.display =
+    requestsForMyTeamReview.length == 0 ? "none" : "";
+
   const myPRsTable = document.getElementById("myPrTable") as HTMLTableElement;
   myPRsTable.style.display = myPRs.length == 0 ? "none" : "";
   deleteAllRows(myPRsTable);
@@ -385,12 +400,17 @@ async function populateFromState(
       : "";
   deleteAllRows(commentsTable);
 
-  // Iterate over the requestsForMyReviews array and create rows for each entry
-  for (let i = 0; i < requestsForMyReviews.length; i++) {
-    const row = myReviewRequestedTable.insertRow(i + 1); // Insert rows starting from index 1
+  // Iterate over the sortedReviewRequests array and create a table row for each entry
+  for (let i = 0; i < sortedReviewRequests.length; i++) {
+    const reviewRequest = sortedReviewRequests[i];
 
+    let row: HTMLTableRowElement;
+    if (reviewRequest.isTeamReviewRequest()) {
+      row = myTeamReviewRequestedTable.insertRow();
+    } else {
+      row = myReviewRequestedTable.insertRow();
+    }
     const repoCell = row.insertCell(0);
-    const reviewRequest = requestsForMyReviews[i];
     repoCell.innerHTML = reviewRequest.repoFullName;
     repoCell.className = "repoColumn";
 
@@ -409,16 +429,43 @@ async function populateFromState(
           (1000 * 60 * 60),
       ) + "h";
 
-    if (
+    if (reviewRequest.isTeamReviewRequest()) {
+      // #NOT_MATURE: partial duplicate of the below:
+      const notMyTurnCell = row.insertCell(3);
+      notMyTurnCell.align = "center";
+      const notMyTurnImgId = "notMyTurnReviewRequest" + i;
+      notMyTurnCell.innerHTML =
+        '<img src="icons/xMark16.png" style="cursor: pointer; width: 12px;" id="' +
+        notMyTurnImgId +
+        '" alt="Not my turn" title="Not my turn / Ignore"/>';
+      document.getElementById(notMyTurnImgId).addEventListener("click", () => {
+        addNotMyTurnReviewRequestBlock(
+          new NotMyTurnReviewRequestBlock(
+            reviewRequest.pr.url,
+            reviewRequest.reviewRequestedAtUnixMillis(),
+          ),
+        ).then(() => updatePopupPage());
+      });
+    } else if (
       reviewRequest.reasonNotIgnored ===
       ReasonNotIgnored.LIKELY_JUST_SINGLE_COMMENT
     ) {
+      // #NOT_MATURE: partially duplicated above:
       const notMyTurnCell = row.insertCell(3);
       notMyTurnCell.align = "center";
+      const notMyTurnImgId = "notMyTurnReviewRequest" + i;
       notMyTurnCell.innerHTML =
-        '<img src="icons/xMark16.png" style="cursor: pointer; width: 12px;" id="notMyTurnReviewRequest' +
-        i +
+        '<img src="icons/xMark16.png" style="cursor: pointer; width: 12px;" id="' +
+        notMyTurnImgId +
         '" alt="Not my turn" title="Not my turn / Ignore"/>';
+      document.getElementById(notMyTurnImgId).addEventListener("click", () => {
+        addNotMyTurnReviewRequestBlock(
+          new NotMyTurnReviewRequestBlock(
+            reviewRequest.pr.url,
+            reviewRequest.reviewRequestedAtUnixMillis(),
+          ),
+        ).then(() => updatePopupPage());
+      });
       document.getElementById(
         "notMyTurnMyReviewRequestHeaderColumn",
       ).style.display = "";
@@ -428,16 +475,6 @@ async function populateFromState(
         // Need different width because column header title is huge.
         titleTd.className = "theirPrTitleColumnIfNotMyTurnEnabled";
       }
-      document
-        .getElementById("notMyTurnReviewRequest" + i)
-        .addEventListener("click", () => {
-          addNotMyTurnReviewRequestBlock(
-            new NotMyTurnReviewRequestBlock(
-              reviewRequest.pr.url,
-              reviewRequest.reviewRequestedAtUnixMillis(),
-            ),
-          ).then(() => updatePopupPage());
-        });
     }
   }
 
