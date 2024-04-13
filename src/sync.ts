@@ -1,8 +1,10 @@
 import { Octokit } from "@octokit/rest";
 import { GitHubUser } from "./gitHubUser";
 import {
+  getUser,
   gitHubCallsCounter,
   listRecentNotifications,
+  listUserTeams,
   resetGitHubCallsCounter,
   syncGitHubRepo,
 } from "./github";
@@ -89,6 +91,11 @@ export async function sync(myGitHubUser: GitHubUser) {
   const recentNotifications = await listRecentNotifications(
     settings.getMinCommentCreateDate(),
   );
+
+  const user = (await getUser()).data;
+  myGitHubUser.login = user.login;
+  const userTeams = await listUserTeams();
+  myGitHubUser.teamIds = userTeams.map((v) => v.id);
 
   // It's probably better to do these GitHub requests in a sequential manner so that GitHub is not
   // tempted to block them even if user monitors many repos:

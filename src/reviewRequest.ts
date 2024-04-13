@@ -22,10 +22,12 @@ export class ReviewRequest {
     pr: PR,
     firstTimeObservedUnixMillis: number,
     reasonNotIgnored = undefined as ReasonNotIgnored,
+    teamName = undefined as string,
   ) {
     this.pr = pr;
     this.firstTimeObservedUnixMillis = firstTimeObservedUnixMillis;
     this.reasonNotIgnored = reasonNotIgnored;
+    this.teamName = teamName;
   }
 
   reviewRequestedAtUnixMillis() {
@@ -37,6 +39,7 @@ export class ReviewRequest {
       v.pr,
       v.firstTimeObservedUnixMillis,
       v.reasonNotIgnored,
+      v.teamName,
     );
   }
 

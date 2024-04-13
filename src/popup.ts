@@ -57,7 +57,7 @@ document.getElementById("tokenForm").addEventListener("submit", (e) => {
     .then((v) => {
       const userId = v.data.id;
       console.log("GitHub user ID: " + userId);
-      const gitHubUser = new GitHubUser(userId, v.data.login, newToken);
+      const gitHubUser = new GitHubUser(userId, newToken);
       const result = storeGitHubUser(gitHubUser);
       // trigger sync:
       trySyncWithCredentials(gitHubUser);

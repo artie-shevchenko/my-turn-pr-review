@@ -1,11 +1,12 @@
 export class GitHubUser {
   id: number;
-  login: string;
   token: string;
+  // lazily populated on every sync, no caching, these may change:
+  login: string;
+  teamIds: number[];
 
-  constructor(id: number, login: string, token: string) {
+  constructor(id: number, token: string) {
     this.id = id;
-    this.login = login;
     this.token = token;
   }
 }

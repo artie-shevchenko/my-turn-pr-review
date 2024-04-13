@@ -19,6 +19,7 @@ const MAX_NUMBER_OF_RETRIES = 3;
 const ISSUE_COMMENTS_PER_PAGE = 100;
 const ISSUE_COMMENT_REACTIONS_PER_PAGE = 100;
 const ISSUE_EVENTS_PER_PAGE = 100;
+const TEAMS_PER_PAGE = 100;
 const NOTIFICATIONS_PER_PAGE = 50;
 const PULL_COMMENTS_PER_PAGE = 100;
 const PULL_COMMENT_REACTIONS_PER_PAGE = 100;
@@ -26,6 +27,15 @@ const PULLS_PER_PAGE = 100;
 const REVIEWS_PER_PAGE = 100;
 const REVIEW_COMMENTS_PER_PAGE = 100;
 
+type PullsGetUserResponseType = GetResponseTypeFromEndpointMethod<
+  typeof octokit.users.getAuthenticated
+>;
+type TeamsListResponseType = GetResponseTypeFromEndpointMethod<
+  typeof octokit.teams.listForAuthenticatedUser
+>;
+type TeamsListResponseDataType = GetResponseDataTypeFromEndpointMethod<
+  typeof octokit.teams.listForAuthenticatedUser
+>;
 type PullsListResponseType = GetResponseTypeFromEndpointMethod<
   typeof octokit.pulls.list
 >;
@@ -164,7 +174,7 @@ async function syncRequestsForMyReview(
         for (const reviewer of pr.requested_reviewers) {
           if (reviewer.id === myGitHubUser.id) {
             const reviewRequestedAtUnixMillis =
-              await getLatestMyReviewRequestedEventTimestamp(
+              await getLatestReviewRequestedEventTimestamp(
                 pr,
                 repo,
                 myGitHubUser.id,
@@ -207,6 +217,33 @@ async function syncRequestsForMyReview(
             requestsForMyReviewBuilder.push(reviewRequest);
           }
         }
+
+        let teamReviewRequest: ReviewRequest;
+        for (const reviewerTeam of pr.requested_teams) {
+          if (
+            !myGitHubUser.teamIds.some((teamId) => teamId === reviewerTeam.id)
+          ) {
+            continue;
+          }
+          const reviewRequestedAtUnixMillis =
+            await getLatestReviewRequestedEventTimestamp(
+              pr,
+              repo,
+              reviewerTeam.id,
+            );
+          // deduplicate team review requests for the same PR:
+          teamReviewRequest = new ReviewRequest(
+            new PR(pr.html_url, pr.title, pr.draft),
+            // #NOT_MATURE: if no event found (docs are unclear) then use current time.
+            // better than nothing:
+            reviewRequestedAtUnixMillis,
+            undefined,
+            reviewerTeam.name,
+          );
+        }
+        if (teamReviewRequest) {
+          requestsForMyReviewBuilder.push(teamReviewRequest);
+        }
       }
     }
     pageNumber++;
@@ -214,22 +251,23 @@ async function syncRequestsForMyReview(
   return requestsForMyReviewBuilder;
 }
 
-async function getLatestMyReviewRequestedEventTimestamp(
+/** #NOT_MATURE: returns now if no event/timestamp found. */
+async function getLatestReviewRequestedEventTimestamp(
   pr: PullsListResponseDataType[0],
   repo: RepoState,
-  myGitHubUserId: number,
+  reviewerId: number,
 ): Promise<number> {
   let result = 0;
   const events = await listIssueEvents(repo, pr.number);
   for (const event of events) {
     if (
       event.event === "review_requested" &&
-      event.requested_reviewer.id === myGitHubUserId
+      event.requested_reviewer.id === reviewerId
     ) {
       result = Math.max(result, new Date(event.created_at).getTime());
     }
   }
-  return result;
+  return result == 0 ? new Date().getTime() : result;
 }
 
 /** Returns a review request if I left no real review, just "Add a single comment" maybe. */
@@ -239,7 +277,7 @@ async function maybeGetReviewRequest(
   myGitHubUser: GitHubUser,
 ) {
   const lastMyReviewRequestedUnixMillis =
-    await getLatestMyReviewRequestedEventTimestamp(pr, repo, myGitHubUser.id);
+    await getLatestReviewRequestedEventTimestamp(pr, repo, myGitHubUser.id);
 
   const reviewsAfterMyLastReviewRequested = (
     await listReviews(repo, pr.number)
@@ -997,6 +1035,72 @@ async function listIssueCommentReactionsPage(
         pageNumber,
         retryNumber + 1,
       );
+    }
+  }
+}
+
+export async function getUser(
+  retryNumber = 0,
+): Promise<PullsGetUserResponseType> {
+  try {
+    // A little hack just to get repo owner and name:
+    if (retryNumber > 0) {
+      // exponential backoff:
+      await delay(1000 * Math.pow(2, retryNumber - 1));
+    }
+    await throttleGitHub();
+    return await octokit.users.getAuthenticated({
+      headers: {
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+    });
+  } catch (e) {
+    if (retryNumber > MAX_NUMBER_OF_RETRIES) {
+      console.error("The maximum number of retries reached");
+      throw e;
+    } else {
+      return await getUser(retryNumber + 1);
+    }
+  }
+}
+
+export async function listUserTeams(): Promise<TeamsListResponseDataType[0][]> {
+  const result = [];
+  let pageNumber = 1;
+  let response: TeamsListResponseType;
+  do {
+    response = await listUserTeamsPage(pageNumber);
+    for (const arrayElement of response.data) {
+      result.push(arrayElement as TeamsListResponseDataType[0]);
+    }
+    pageNumber++;
+  } while (response.data.length >= TEAMS_PER_PAGE);
+  return result;
+}
+
+async function listUserTeamsPage(
+  pageNumber: number,
+  retryNumber = 0,
+): Promise<TeamsListResponseType> {
+  try {
+    if (retryNumber > 0) {
+      // exponential backoff:
+      await delay(1000 * Math.pow(2, retryNumber - 1));
+    }
+    await throttleGitHub();
+    return await octokit.teams.listForAuthenticatedUser({
+      per_page: ISSUE_EVENTS_PER_PAGE,
+      page: pageNumber,
+      headers: {
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+    });
+  } catch (e) {
+    if (retryNumber > MAX_NUMBER_OF_RETRIES) {
+      console.error("The maximum number of retries reached");
+      throw e;
+    } else {
+      return await listUserTeamsPage(pageNumber, retryNumber + 1);
     }
   }
 }
