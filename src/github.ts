@@ -188,53 +188,50 @@ async function syncRequestsForMyReview(
           }
         }
 
-        if (!myReviewRequested) {
+        if (!myReviewRequested && !repo.lastSuccessfulSyncResult) {
           // Well, maybe my review was requested, but then I made a single comment and, voila, my
           // review is not requested anymore!
-
-          if (!repo.lastSuccessfulSyncResult) {
-            // sorry if that's the first sync for the repo, nothing we can do about it.
-            continue;
-          }
 
           if (
             repo.lastSuccessfulSyncResult.requestsForMyReview.filter(
               (r) => r.pr.url === pr.html_url,
-            ).length == 0
+            ).length > 0
           ) {
-            continue;
-          }
-          // My review was requested at some point in the past. PR is open.
-          // My review technically not requested anymore. Does it mean I left
-          // a review? Maybe. Or I just left a single comment and that's being interpreted as a
-          // review by GitHub. See https://github.com/artie-shevchenko/my-turn-pr-review/issues/52
-          const reviewRequest = await maybeGetReviewRequest(
-            pr,
-            repo,
-            myGitHubUser,
-          );
-          if (reviewRequest) {
-            requestsForMyReviewBuilder.push(reviewRequest);
+            // My review was requested at some point in the past. PR is open.
+            // My review technically not requested anymore. Does it mean I left
+            // a review? Maybe. Or I just left a single comment and that's being interpreted as a
+            // review by GitHub. See https://github.com/artie-shevchenko/my-turn-pr-review/issues/52
+            const reviewRequest = await maybeGetReviewRequest(
+              pr,
+              repo,
+              myGitHubUser,
+            );
+            if (reviewRequest) {
+              myReviewRequested = true;
+              requestsForMyReviewBuilder.push(reviewRequest);
+            }
           }
         }
 
-        let teamReviewRequest: ReviewRequest;
-        for (const reviewerTeam of pr.requested_teams) {
-          if (
-            !myGitHubUser.teamIds.some((teamId) => teamId === reviewerTeam.id)
-          ) {
-            continue;
+        if (!myReviewRequested) {
+          let teamReviewRequest: ReviewRequest;
+          for (const reviewerTeam of pr.requested_teams) {
+            if (
+              !myGitHubUser.teamIds.some((teamId) => teamId === reviewerTeam.id)
+            ) {
+              continue;
+            }
+            // deduplicate team review requests for the same PR:
+            teamReviewRequest = new ReviewRequest(
+              new PR(pr.html_url, pr.title, pr.draft),
+              undefined,
+              undefined,
+              reviewerTeam.name,
+            );
           }
-          // deduplicate team review requests for the same PR:
-          teamReviewRequest = new ReviewRequest(
-            new PR(pr.html_url, pr.title, pr.draft),
-            undefined,
-            undefined,
-            reviewerTeam.name,
-          );
-        }
-        if (teamReviewRequest) {
-          requestsForMyReviewBuilder.push(teamReviewRequest);
+          if (teamReviewRequest) {
+            requestsForMyReviewBuilder.push(teamReviewRequest);
+          }
         }
       }
     }
