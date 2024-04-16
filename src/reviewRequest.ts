@@ -11,7 +11,8 @@ export class ReviewRequest {
   pr: PR;
   // #NOT_MATURE: that's basically reviewRequestedAtUnixMillis (it used to be more complicated in
   // the past):
-  firstTimeObservedUnixMillis: number;
+  /* Is undefined for team review request. */
+  firstTimeObservedUnixMillis: number | undefined;
   reasonNotIgnored: ReasonNotIgnored | undefined;
   // if present then it's a review request for my team, not for me personally:
   teamName: string | undefined;
@@ -30,6 +31,7 @@ export class ReviewRequest {
     this.teamName = teamName;
   }
 
+  /* Is undefined for team review request. */
   reviewRequestedAtUnixMillis() {
     return this.firstTimeObservedUnixMillis;
   }

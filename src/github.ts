@@ -225,18 +225,10 @@ async function syncRequestsForMyReview(
           ) {
             continue;
           }
-          const reviewRequestedAtUnixMillis =
-            await getLatestReviewRequestedEventTimestamp(
-              pr,
-              repo,
-              reviewerTeam.id,
-            );
           // deduplicate team review requests for the same PR:
           teamReviewRequest = new ReviewRequest(
             new PR(pr.html_url, pr.title, pr.draft),
-            // #NOT_MATURE: if no event found (docs are unclear) then use current time.
-            // better than nothing:
-            reviewRequestedAtUnixMillis,
+            undefined,
             undefined,
             reviewerTeam.name,
           );
@@ -251,7 +243,6 @@ async function syncRequestsForMyReview(
   return requestsForMyReviewBuilder;
 }
 
-/** #NOT_MATURE: returns now if no event/timestamp found. */
 async function getLatestReviewRequestedEventTimestamp(
   pr: PullsListResponseDataType[0],
   repo: RepoState,
@@ -267,7 +258,7 @@ async function getLatestReviewRequestedEventTimestamp(
       result = Math.max(result, new Date(event.created_at).getTime());
     }
   }
-  return result == 0 ? new Date().getTime() : result;
+  return result;
 }
 
 /** Returns a review request if I left no real review, just "Add a single comment" maybe. */

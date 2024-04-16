@@ -422,16 +422,11 @@ async function populateFromState(
       reviewRequest.pr.name +
       "</a>";
 
-    const hoursCell = row.insertCell(2);
-    hoursCell.innerHTML =
-      Math.floor(
-        (Date.now() - reviewRequest.reviewRequestedAtUnixMillis()) /
-          (1000 * 60 * 60),
-      ) + "h";
-
+    // #NOT_MATURE: likely better split these into a separate block despite having something
+    // in common between all the review requests.
     if (reviewRequest.isTeamReviewRequest()) {
       // #NOT_MATURE: partial duplicate of the below:
-      const notMyTurnCell = row.insertCell(3);
+      const notMyTurnCell = row.insertCell(2);
       notMyTurnCell.align = "center";
       const notMyTurnImgId = "notMyTurnReviewRequest" + i;
       notMyTurnCell.innerHTML =
@@ -446,35 +441,46 @@ async function populateFromState(
           ),
         ).then(() => updatePopupPage());
       });
-    } else if (
-      reviewRequest.reasonNotIgnored ===
-        ReasonNotIgnored.LIKELY_JUST_SINGLE_COMMENT ||
-      reviewRequest.pr.isDraft
-    ) {
-      // #NOT_MATURE: partially duplicated above:
-      const notMyTurnCell = row.insertCell(3);
-      notMyTurnCell.align = "center";
-      const notMyTurnImgId = "notMyTurnReviewRequest" + i;
-      notMyTurnCell.innerHTML =
-        '<img src="icons/xMark16.png" style="cursor: pointer; width: 12px;" id="' +
-        notMyTurnImgId +
-        '" alt="Not my turn" title="Not my turn / Ignore"/>';
-      document.getElementById(notMyTurnImgId).addEventListener("click", () => {
-        addNotMyTurnReviewRequestBlock(
-          new NotMyTurnReviewRequestBlock(
-            reviewRequest.pr.url,
-            reviewRequest.reviewRequestedAtUnixMillis(),
-          ),
-        ).then(() => updatePopupPage());
-      });
-      document.getElementById(
-        "notMyTurnMyReviewRequestHeaderColumn",
-      ).style.display = "";
-      for (const titleTd of document.getElementsByClassName(
-        "theirPrTitleColumn",
-      )) {
-        // Need different width because column header title is huge.
-        titleTd.className = "theirPrTitleColumnIfNotMyTurnEnabled";
+    } else {
+      const hoursCell = row.insertCell(2);
+      hoursCell.innerHTML =
+        Math.floor(
+          (Date.now() - reviewRequest.reviewRequestedAtUnixMillis()) /
+            (1000 * 60 * 60),
+        ) + "h";
+
+      if (
+        reviewRequest.reasonNotIgnored ===
+          ReasonNotIgnored.LIKELY_JUST_SINGLE_COMMENT ||
+        reviewRequest.pr.isDraft
+      ) {
+        // #NOT_MATURE: partially duplicated above:
+        const notMyTurnCell = row.insertCell(3);
+        notMyTurnCell.align = "center";
+        const notMyTurnImgId = "notMyTurnReviewRequest" + i;
+        notMyTurnCell.innerHTML =
+          '<img src="icons/xMark16.png" style="cursor: pointer; width: 12px;" id="' +
+          notMyTurnImgId +
+          '" alt="Not my turn" title="Not my turn / Ignore"/>';
+        document
+          .getElementById(notMyTurnImgId)
+          .addEventListener("click", () => {
+            addNotMyTurnReviewRequestBlock(
+              new NotMyTurnReviewRequestBlock(
+                reviewRequest.pr.url,
+                reviewRequest.reviewRequestedAtUnixMillis(),
+              ),
+            ).then(() => updatePopupPage());
+          });
+        document.getElementById(
+          "notMyTurnMyReviewRequestHeaderColumn",
+        ).style.display = "";
+        for (const titleTd of document.getElementsByClassName(
+          "theirPrTitleColumn",
+        )) {
+          // Need different width because column header title is huge.
+          titleTd.className = "theirPrTitleColumnIfNotMyTurnEnabled";
+        }
       }
     }
   }
