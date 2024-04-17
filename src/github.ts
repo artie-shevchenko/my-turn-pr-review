@@ -180,7 +180,7 @@ async function syncRequestsForMyReview(
                 myGitHubUser.id,
               );
             const reviewRequest = new ReviewRequest(
-              new PR(pr.html_url, pr.title, pr.draft),
+              new PR(pr.html_url, pr.title, pr.user.login, pr.draft),
               reviewRequestedAtUnixMillis,
             );
             requestsForMyReviewBuilder.push(reviewRequest);
@@ -223,7 +223,7 @@ async function syncRequestsForMyReview(
             }
             // deduplicate team review requests for the same PR:
             teamReviewRequest = new ReviewRequest(
-              new PR(pr.html_url, pr.title, pr.draft),
+              new PR(pr.html_url, pr.title, pr.user.login, pr.draft),
               undefined,
               undefined,
               reviewerTeam.name,
@@ -301,7 +301,7 @@ async function maybeGetReviewRequest(
   // I left no real reviews after review requested, just "Add a single comment" "reviews" (or a
   // review that is indistinguishable from it.
   return new ReviewRequest(
-    new PR(pr.html_url, pr.title, pr.draft),
+    new PR(pr.html_url, pr.title, pr.user.login, pr.draft),
     lastMyReviewRequestedUnixMillis,
     ReasonNotIgnored.LIKELY_JUST_SINGLE_COMMENT,
   );
@@ -309,7 +309,7 @@ async function maybeGetReviewRequest(
 
 async function syncMyPR(pr: PullsListResponseDataType[0], repo: RepoState) {
   const reviewsRequested = pr.requested_reviewers.map((reviewer) => {
-    const pullRequest = new PR(pr.html_url, pr.title, pr.draft);
+    const pullRequest = new PR(pr.html_url, pr.title, pr.user.login, pr.draft);
     return new ReviewRequestOnMyPR(pullRequest, reviewer.id);
   });
 
@@ -319,7 +319,7 @@ async function syncMyPR(pr: PullsListResponseDataType[0], repo: RepoState) {
     pr.number,
   );
 
-  const prObj = new PR(pr.html_url, pr.title, pr.draft);
+  const prObj = new PR(pr.html_url, pr.title, pr.user.login, pr.draft);
   const reviewsReceived = reviews.map((review) => {
     const state = review.state;
     const typedState = state as keyof typeof ReviewState;
@@ -419,7 +419,11 @@ async function syncPullComments(
         commentsBuilder.push(
           new Comment(
             commentMakingItMyTurn.html_url,
-            new PR(prUrl, notification.subject.title),
+            new PR(
+              prUrl,
+              notification.subject.title,
+              /* authorLogin = */ undefined,
+            ),
             commentMakingItMyTurn.body,
             commentMakingItMyTurn.user.login,
             new Date(commentMakingItMyTurn.created_at).getTime(),
@@ -474,7 +478,11 @@ async function syncIssueComments(
       commentsBuilder.push(
         new Comment(
           commentMakingItMyTurn.html_url,
-          new PR(prUrl, notification.subject.title),
+          new PR(
+            prUrl,
+            notification.subject.title,
+            /* authorLogin = */ undefined,
+          ),
           commentMakingItMyTurn.body,
           commentMakingItMyTurn.user.login,
           new Date(commentMakingItMyTurn.created_at).getTime(),

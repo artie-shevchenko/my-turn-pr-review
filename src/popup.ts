@@ -422,11 +422,15 @@ async function populateFromState(
       reviewRequest.pr.name +
       "</a>";
 
+    const authorCell = row.insertCell(2);
+    authorCell.innerHTML = "@" + reviewRequest.pr.authorLogin;
+    authorCell.className = "userColumn";
+
     // #NOT_MATURE: likely better split these into a separate block despite having something
     // in common between all the review requests.
     if (reviewRequest.isTeamReviewRequest()) {
       // #NOT_MATURE: partial duplicate of the below:
-      const notMyTurnCell = row.insertCell(2);
+      const notMyTurnCell = row.insertCell(3);
       notMyTurnCell.align = "center";
       const notMyTurnImgId = "notMyTurnReviewRequest" + i;
       notMyTurnCell.innerHTML =
@@ -442,7 +446,7 @@ async function populateFromState(
         ).then(() => updatePopupPage());
       });
     } else {
-      const hoursCell = row.insertCell(2);
+      const hoursCell = row.insertCell(3);
       hoursCell.innerHTML =
         Math.floor(
           (Date.now() - reviewRequest.reviewRequestedAtUnixMillis()) /
@@ -455,7 +459,7 @@ async function populateFromState(
         reviewRequest.pr.isDraft
       ) {
         // #NOT_MATURE: partially duplicated above:
-        const notMyTurnCell = row.insertCell(3);
+        const notMyTurnCell = row.insertCell(4);
         notMyTurnCell.align = "center";
         const notMyTurnImgId = "notMyTurnReviewRequest" + i;
         notMyTurnCell.innerHTML =
