@@ -188,7 +188,7 @@ async function syncRequestsForMyReview(
           }
         }
 
-        if (!myReviewRequested && !repo.lastSuccessfulSyncResult) {
+        if (!myReviewRequested && repo.lastSuccessfulSyncResult) {
           // Well, maybe my review was requested, but then I made a single comment and, voila, my
           // review is not requested anymore!
 
@@ -273,6 +273,7 @@ async function maybeGetReviewRequest(
     (v) => new Date(v.submitted_at).getTime() > lastMyReviewRequestedUnixMillis,
   );
 
+  let singleCommentReviewPresent = false;
   for (const review of reviewsAfterMyLastReviewRequested) {
     if (review.user.id !== myGitHubUser.id) {
       continue;
@@ -284,10 +285,17 @@ async function maybeGetReviewRequest(
     }
 
     const comments = await listCommentsForReview(repo, pr.number, review.id);
-    if (comments.length !== 1) {
+    if (comments.length === 1) {
+      singleCommentReviewPresent = true;
+    } else {
       // That's a real review, not "Add a single comment".
       return undefined;
     }
+  }
+
+  if (!singleCommentReviewPresent) {
+    // That's not "Add a single comment" case.
+    return undefined;
   }
 
   // I left no real reviews after review requested, just "Add a single comment" "reviews" (or a
