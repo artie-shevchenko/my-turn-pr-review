@@ -250,6 +250,7 @@ async function getLatestReviewRequestedEventTimestamp(
   for (const event of events) {
     if (
       event.event === "review_requested" &&
+      event.requested_reviewer &&
       event.requested_reviewer.id === reviewerId
     ) {
       result = Math.max(result, new Date(event.created_at).getTime());

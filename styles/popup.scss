@@ -32,15 +32,11 @@ td {
   padding-bottom: 4px;
 }
 .repoColumn {
-  width: 20%;
-  word-wrap:break-word;
-}
-.commentsTableRepoColumn {
-  width: 60px;
+  width: 80px;
   word-wrap:break-word;
 }
 .notMyTurnColumn {
-  width: 42px;
+  width: 43px;
 }
 .theirPrTitleColumn {
   width: 60%;
@@ -54,7 +50,11 @@ td {
 .myPrTitleColumn {
   width: 60%;
 }
-.userColumn {
+.authorColumn {
+  width: 10%;
+  word-wrap:break-word;
+}
+.teamColumn {
   width: 10%;
   word-wrap:break-word;
 }
