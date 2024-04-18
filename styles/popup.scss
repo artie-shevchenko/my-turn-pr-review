@@ -38,21 +38,15 @@ td {
 .notMyTurnColumn {
   width: 43px;
 }
-.theirPrTitleColumn {
-  width: 60%;
-}
-.theirPrTitleColumnTeam {
-  width: 50%;
-}
-.theirPrTitleColumnIfNotMyTurnEnabled {
-  width: 45%;
-}
-.myPrTitleColumn {
-  width: 60%;
+.myPrStatusColumn {
+  width: 42px;
 }
 .authorColumn {
   width: 10%;
   word-wrap:break-word;
+}
+.myReviewRequestedAuthorColumn {
+  width:70px;
 }
 .teamColumn {
   width: 10%;

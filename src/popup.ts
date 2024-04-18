@@ -231,14 +231,8 @@ async function populateFromState(
   commentBlocks: CommentBlock[],
   settings: Settings,
 ) {
-  // Reset to default style (column widths):
-  for (const titleTd of document.getElementsByClassName(
-    "theirPrTitleColumnIfNotMyTurnEnabled",
-  )) {
-    titleTd.className = "theirPrTitleColumn";
-  }
   document.getElementById(
-    "notMyTurnMyReviewRequestHeaderColumn",
+    "myReviewRequestedNotMyTurnHeaderColumn",
   ).style.display = "none";
 
   const repoWarnSection = document.getElementById("repoWarn");
@@ -457,14 +451,8 @@ async function populateFromState(
         ).then(() => updatePopupPage());
       });
       document.getElementById(
-        "notMyTurnMyReviewRequestHeaderColumn",
+        "myReviewRequestedNotMyTurnHeaderColumn",
       ).style.display = "";
-      for (const titleTd of document.getElementsByClassName(
-        "theirPrTitleColumn",
-      )) {
-        // Need different width because column header title is huge.
-        titleTd.className = "theirPrTitleColumnIfNotMyTurnEnabled";
-      }
     }
   }
 
