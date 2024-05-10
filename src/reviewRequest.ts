@@ -64,7 +64,10 @@ export class ReviewRequest {
   isBlockedBy(block: ReviewRequestBlock): boolean {
     return (
       this.reviewRequestedAtUnixMillis() ===
-        block.reviewRequestedAtUnixMillis && this.pr.url === block.prUrl
+        block.reviewRequestedAtUnixMillis &&
+      this.pr.url === block.prUrl &&
+      (!block.expireAtUnixMillis ||
+        block.expireAtUnixMillis > new Date().getTime())
     );
   }
 

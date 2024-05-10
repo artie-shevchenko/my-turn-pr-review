@@ -1,6 +1,6 @@
 import "../styles/popup.scss";
 import { Octokit } from "@octokit/rest";
-import { ReasonNotIgnored } from "./reviewRequest";
+import { ReasonNotIgnored, ReviewRequest } from "./reviewRequest";
 import { trySyncWithCredentials } from "./sync";
 import { GitHubUser } from "./gitHubUser";
 import { CommentBlock, MyPrBlock, ReviewRequestBlock } from "./notMyTurnBlock";
@@ -218,6 +218,32 @@ const APPROVED_SVG =
 
 const SYNC_IN_PROGRESS_MSG = "Sync with GitHub in progress...";
 
+function addSnoozeCell(
+  row: HTMLTableRowElement,
+  reviewRequest: ReviewRequest,
+  snoozeImgId: string,
+  cellIndex: number,
+) {
+  const snoozeCell = row.insertCell(cellIndex);
+  snoozeCell.align = "center";
+  snoozeCell.innerHTML =
+    '<img src="icons/snooze256.png" style="cursor: pointer; width: 20px;" id="' +
+    snoozeImgId +
+    '" alt="Snooze till tomorrow" title="I\'ll take a look tomorrow"/>';
+  document.getElementById(snoozeImgId).addEventListener("click", () => {
+    // Quick turnaround is super important in code review so hardcode 1d
+    const expireDate = new Date();
+    expireDate.setHours(33);
+    addNotMyTurnReviewRequestBlock(
+      new ReviewRequestBlock(
+        reviewRequest.pr.url,
+        reviewRequest.reviewRequestedAtUnixMillis(),
+        expireDate.getTime(),
+      ),
+    ).then(() => updatePopupPage());
+  });
+}
+
 async function populateFromState(
   syncSuccessRepos: RepoState[],
   syncFailureRepos: RepoState[],
@@ -397,16 +423,17 @@ async function populateFromState(
       : "";
   deleteAllRows(commentsTable);
 
-  // Iterate over the sortedRequestsForMyReview array and create a table row for each entry
+  // Iterate over the sortedRequestsForMyReview array and create a table row per entry
   for (let i = 0; i < sortedRequestsForMyReview.length; i++) {
     const reviewRequest = sortedRequestsForMyReview[i];
 
+    let columnIndex = 0;
     const row = myReviewRequestedTable.insertRow();
-    const repoCell = row.insertCell(0);
+    const repoCell = row.insertCell(columnIndex++);
     repoCell.innerHTML = reviewRequest.repoFullName;
     repoCell.className = "repoColumn";
 
-    const prCell = row.insertCell(1);
+    const prCell = row.insertCell(columnIndex++);
     prCell.innerHTML =
       "<a href = '" +
       reviewRequest.pr.url +
@@ -414,24 +441,31 @@ async function populateFromState(
       reviewRequest.pr.name +
       "</a>";
 
-    const authorCell = row.insertCell(2);
+    const authorCell = row.insertCell(columnIndex++);
     authorCell.innerHTML = "@" + reviewRequest.pr.authorLogin;
     authorCell.className = "authorColumn";
 
-    const hoursCell = row.insertCell(3);
+    const hoursCell = row.insertCell(columnIndex++);
     hoursCell.innerHTML =
       Math.floor(
         (Date.now() - reviewRequest.reviewRequestedAtUnixMillis()) /
           (1000 * 60 * 60),
       ) + "h";
 
+    addSnoozeCell(
+      row,
+      reviewRequest,
+      "snoozeMyReviewRequest" + i,
+      columnIndex++,
+    );
+
     if (
       reviewRequest.reasonNotIgnored ===
         ReasonNotIgnored.LIKELY_JUST_SINGLE_COMMENT ||
       reviewRequest.pr.isDraft
     ) {
-      // #NOT_MATURE: partially duplicated below:
-      const notMyTurnCell = row.insertCell(4);
+      // #NOT_MATURE: partially duplicated below in my team review requests:
+      const notMyTurnCell = row.insertCell(columnIndex++);
       notMyTurnCell.align = "center";
       const notMyTurnImgId = "notMyTurnMyReviewRequest" + i;
       notMyTurnCell.innerHTML =
@@ -452,7 +486,7 @@ async function populateFromState(
     }
   }
 
-  // Iterate over the sortedRequestsForMyTeamReview array and create a table row for each entry
+  // Iterate over the sortedRequestsForMyTeamReview array and create a table row per entry
   for (let i = 0; i < sortedRequestsForMyTeamReview.length; i++) {
     const reviewRequest = sortedRequestsForMyTeamReview[i];
 
@@ -477,8 +511,10 @@ async function populateFromState(
     authorCell.innerHTML = "@" + reviewRequest.pr.authorLogin;
     authorCell.className = "authorColumn";
 
-    // #NOT_MATURE: partially duplicated above:
-    const notMyTurnCell = row.insertCell(4);
+    addSnoozeCell(row, reviewRequest, "snoozeMyTeamReviewRequest" + i, 4);
+
+    // #NOT_MATURE: partially duplicated above in my review requests:
+    const notMyTurnCell = row.insertCell(5);
     notMyTurnCell.align = "center";
     const notMyTurnImgId = "notMyTurnMyTeamReviewRequest" + i;
     notMyTurnCell.innerHTML =
