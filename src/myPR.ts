@@ -1,4 +1,4 @@
-import { NotMyTurnBlock } from "./notMyTurnBlock";
+import { MyPrBlock } from "./notMyTurnBlock";
 import { PR } from "./PR";
 import { ReviewState } from "./reviewState";
 import { Settings } from "./settings";
@@ -104,7 +104,7 @@ export class MyPR {
     return Math.max(...this.reviewerStates.map((v) => v.submittedAtUnixMillis));
   }
 
-  isBlockedBy(block: NotMyTurnBlock) {
+  isBlockedBy(block: MyPrBlock) {
     let lastReviewSubmittedUnixMillis = 0;
     for (const reviewerState of this.reviewerStates) {
       lastReviewSubmittedUnixMillis = Math.max(
@@ -118,7 +118,7 @@ export class MyPR {
     );
   }
 
-  isMyTurn(notMyTurnBlocks: NotMyTurnBlock[], settings: Settings): boolean {
+  isMyTurn(notMyTurnBlocks: MyPrBlock[], settings: Settings): boolean {
     const status = this.getStatus(notMyTurnBlocks, settings);
     // noinspection RedundantIfStatementJS
     if (
@@ -132,7 +132,7 @@ export class MyPR {
   }
 
   getStatus(
-    notMyTurnBlocks: NotMyTurnBlock[],
+    notMyTurnBlocks: MyPrBlock[],
     settings: Settings,
   ): MyPRReviewStatus {
     if (this.reviewerStates.length === 0) {

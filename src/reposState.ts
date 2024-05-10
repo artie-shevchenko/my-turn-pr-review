@@ -1,8 +1,4 @@
-import {
-  CommentBlock,
-  NotMyTurnBlock,
-  NotMyTurnReviewRequestBlock,
-} from "./notMyTurnBlock";
+import { CommentBlock, MyPrBlock, ReviewRequestBlock } from "./notMyTurnBlock";
 import { Repo } from "./repo";
 import { RepoState } from "./repoState";
 import { Settings } from "./settings";
@@ -31,8 +27,8 @@ export class ReposState {
 
   async updateIcon(
     monitoringEnabledRepos: Repo[] = undefined,
-    notMyTurnBlocks: NotMyTurnBlock[] = undefined,
-    notMyTurnReviewRequestBlocks: NotMyTurnReviewRequestBlock[] = undefined,
+    notMyTurnBlocks: MyPrBlock[] = undefined,
+    notMyTurnReviewRequestBlocks: ReviewRequestBlock[] = undefined,
     commentBlocks: CommentBlock[] = undefined,
     settings: Settings = undefined,
   ): Promise<SyncStatus> {

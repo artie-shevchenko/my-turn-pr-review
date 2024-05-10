@@ -1,5 +1,4 @@
-// #NOT_MATURE: that's for PRs only, better rename.
-export class NotMyTurnBlock {
+export class MyPrBlock {
   prUrl: string;
   lastReviewSubmittedUnixMillis: number;
 
@@ -12,7 +11,7 @@ export class NotMyTurnBlock {
 // It's intentionally allowed only for some edge cases, like
 // ReasonNotIgnored.LIKELY_JUST_SINGLE_COMMENT, see usages. In general blocking a review
 // request is not a good idea.
-export class NotMyTurnReviewRequestBlock {
+export class ReviewRequestBlock {
   prUrl: string;
   reviewRequestedAtUnixMillis: number;
 

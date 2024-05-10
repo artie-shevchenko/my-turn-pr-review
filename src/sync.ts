@@ -8,11 +8,7 @@ import {
   resetGitHubCallsCounter,
   syncGitHubRepo,
 } from "./github";
-import {
-  CommentBlock,
-  NotMyTurnBlock,
-  NotMyTurnReviewRequestBlock,
-} from "./notMyTurnBlock";
+import { CommentBlock, MyPrBlock, ReviewRequestBlock } from "./notMyTurnBlock";
 import { Repo } from "./repo";
 import { ReposState } from "./reposState";
 import { RepoState } from "./repoState";
@@ -173,7 +169,7 @@ export async function sync(myGitHubUser: GitHubUser) {
 
 async function maybeCleanUpObsoletePrBlocks(
   repoStates: RepoState[],
-  notMyTurnBlocksFromStorage: NotMyTurnBlock[],
+  notMyTurnBlocksFromStorage: MyPrBlock[],
   monitoringDisabledRepos: Repo[],
 ) {
   if (Math.random() > 0.01) {
@@ -184,7 +180,7 @@ async function maybeCleanUpObsoletePrBlocks(
     return;
   }
 
-  const activeBlocksBuilder = new Set<NotMyTurnBlock>();
+  const activeBlocksBuilder = new Set<MyPrBlock>();
   for (const repoState of repoStates) {
     for (const myPR of repoState.lastSyncResult.myPRs) {
       notMyTurnBlocksFromStorage
@@ -208,7 +204,7 @@ async function maybeCleanUpObsoletePrBlocks(
 
 async function maybeCleanUpObsoleteReviewRequestBlocks(
   repoStates: RepoState[],
-  notMyTurnReviewRequestBlocks: NotMyTurnReviewRequestBlock[],
+  notMyTurnReviewRequestBlocks: ReviewRequestBlock[],
   monitoringDisabledRepos: Repo[],
 ) {
   if (Math.random() > 0.01) {
@@ -219,7 +215,7 @@ async function maybeCleanUpObsoleteReviewRequestBlocks(
     return;
   }
 
-  const activeBlocksBuilder = new Set<NotMyTurnReviewRequestBlock>();
+  const activeBlocksBuilder = new Set<ReviewRequestBlock>();
   for (const repoState of repoStates) {
     for (const reviewRequest of repoState.lastSyncResult.requestsForMyReview) {
       notMyTurnReviewRequestBlocks

@@ -3,11 +3,7 @@ import { Octokit } from "@octokit/rest";
 import { ReasonNotIgnored } from "./reviewRequest";
 import { trySyncWithCredentials } from "./sync";
 import { GitHubUser } from "./gitHubUser";
-import {
-  CommentBlock,
-  NotMyTurnBlock,
-  NotMyTurnReviewRequestBlock,
-} from "./notMyTurnBlock";
+import { CommentBlock, MyPrBlock, ReviewRequestBlock } from "./notMyTurnBlock";
 import { Repo } from "./repo";
 import { RepoState } from "./repoState";
 import { ReviewState } from "./reviewState";
@@ -226,8 +222,8 @@ async function populateFromState(
   syncSuccessRepos: RepoState[],
   syncFailureRepos: RepoState[],
   unsyncedRepos: Repo[],
-  notMyTurnBlocks: NotMyTurnBlock[],
-  notMyTurnReviewRequestBlocks: NotMyTurnReviewRequestBlock[],
+  notMyTurnBlocks: MyPrBlock[],
+  notMyTurnReviewRequestBlocks: ReviewRequestBlock[],
   commentBlocks: CommentBlock[],
   settings: Settings,
 ) {
@@ -444,7 +440,7 @@ async function populateFromState(
         '" alt="Not my turn" title="Not my turn / Ignore"/>';
       document.getElementById(notMyTurnImgId).addEventListener("click", () => {
         addNotMyTurnReviewRequestBlock(
-          new NotMyTurnReviewRequestBlock(
+          new ReviewRequestBlock(
             reviewRequest.pr.url,
             reviewRequest.reviewRequestedAtUnixMillis(),
           ),
@@ -491,7 +487,7 @@ async function populateFromState(
       '" alt="Not my turn" title="Not my turn / Ignore"/>';
     document.getElementById(notMyTurnImgId).addEventListener("click", () => {
       addNotMyTurnReviewRequestBlock(
-        new NotMyTurnReviewRequestBlock(
+        new ReviewRequestBlock(
           reviewRequest.pr.url,
           reviewRequest.reviewRequestedAtUnixMillis(),
         ),
@@ -568,7 +564,7 @@ async function populateFromState(
         return;
       }
       addNotMyTurnBlock(
-        new NotMyTurnBlock(
+        new MyPrBlock(
           myPR.pr.url,
           // should never be null here:
           myPR.getLastReviewSubmittedUnixMillis(),

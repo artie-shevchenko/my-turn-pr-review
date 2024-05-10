@@ -1,8 +1,4 @@
-import {
-  CommentBlock,
-  NotMyTurnBlock,
-  NotMyTurnReviewRequestBlock,
-} from "./notMyTurnBlock";
+import { CommentBlock, MyPrBlock, ReviewRequestBlock } from "./notMyTurnBlock";
 import { SyncStatus } from "./reposState";
 import { RepoSyncResult } from "./repoSyncResult";
 import { Settings } from "./settings";
@@ -24,8 +20,8 @@ export class RepoState {
   }
 
   getSyncStatus(
-    notMyTurnBlocks: NotMyTurnBlock[],
-    notMyTurnReviewRequestBlocks: NotMyTurnReviewRequestBlock[],
+    notMyTurnBlocks: MyPrBlock[],
+    notMyTurnReviewRequestBlocks: ReviewRequestBlock[],
     commentBlocks: CommentBlock[],
     settings: Settings,
     lastSyncDurationMillis: number,

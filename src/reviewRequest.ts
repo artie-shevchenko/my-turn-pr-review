@@ -1,4 +1,4 @@
-import { NotMyTurnReviewRequestBlock } from "./notMyTurnBlock";
+import { ReviewRequestBlock } from "./notMyTurnBlock";
 import { Settings } from "./settings";
 import { PR } from "./PR";
 
@@ -46,7 +46,7 @@ export class ReviewRequest {
   }
 
   isMyTurn(
-    notMyTurnReviewRequestBlocks: NotMyTurnReviewRequestBlock[],
+    notMyTurnReviewRequestBlocks: ReviewRequestBlock[],
     settings: Settings,
   ) {
     if (
@@ -61,7 +61,7 @@ export class ReviewRequest {
     );
   }
 
-  isBlockedBy(block: NotMyTurnReviewRequestBlock): boolean {
+  isBlockedBy(block: ReviewRequestBlock): boolean {
     return (
       this.reviewRequestedAtUnixMillis() ===
         block.reviewRequestedAtUnixMillis && this.pr.url === block.prUrl
