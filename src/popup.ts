@@ -1,11 +1,10 @@
 import "../styles/popup.scss";
 import { Octokit } from "@octokit/rest";
-import { ReasonNotIgnored, ReviewRequest } from "./reviewRequest";
-import { trySyncWithCredentials } from "./sync";
 import { GitHubUser } from "./gitHubUser";
 import { CommentBlock, MyPrBlock, ReviewRequestBlock } from "./notMyTurnBlock";
 import { Repo } from "./repo";
 import { RepoState } from "./repoState";
+import { ReasonNotIgnored, ReviewRequest } from "./reviewRequest";
 import { ReviewState } from "./reviewState";
 import { Settings } from "./settings";
 import {
@@ -23,6 +22,7 @@ import {
   storeGitHubUser,
   storeSettings,
 } from "./storage";
+import { trySyncWithCredentials } from "./sync";
 
 document.getElementById("go-to-options").addEventListener("click", () => {
   chrome.runtime.openOptionsPage();
@@ -36,6 +36,10 @@ document.getElementById("hideComments").addEventListener("click", () => {
     return storeSettings(settings);
   });
 });
+
+document
+  .getElementById("showBlocked")
+  .addEventListener("click", () => updatePopupPage());
 
 document.getElementById("tokenForm").addEventListener("submit", (e) => {
   e.preventDefault();
@@ -135,14 +139,14 @@ function showError(e: Error) {
 async function updatePopupPage() {
   const reposState = await getReposState();
   const repos: Repo[] = await getMonitoringEnabledRepos();
-  const notMyTurnPrBlocks = await getNotMyTurnBlockList();
+  const myPrBlocks = await getNotMyTurnBlockList();
   const notMyTurnReviewRequestBlocks =
     await getNotMyTurnReviewRequestBlockList();
   const commentBlocks = await getCommentBlockList();
   const settings = await getSettings();
   await reposState.updateIcon(
     repos,
-    notMyTurnPrBlocks,
+    myPrBlocks,
     notMyTurnReviewRequestBlocks,
     commentBlocks,
     settings,
@@ -185,15 +189,53 @@ async function updatePopupPage() {
     );
   });
 
+  maybeDisplayShowBlockedControls(
+    syncSuccessRepos,
+    notMyTurnReviewRequestBlocks,
+    myPrBlocks,
+    commentBlocks,
+  );
+  const showBlocked = (
+    document.getElementById("showBlocked") as HTMLInputElement
+  ).checked;
   return populateFromState(
     syncSuccessRepos,
     syncFailureRepos,
     unsyncedRepos,
-    notMyTurnPrBlocks,
-    notMyTurnReviewRequestBlocks,
-    commentBlocks,
+    showBlocked ? [] : myPrBlocks,
+    showBlocked ? [] : notMyTurnReviewRequestBlocks,
+    showBlocked ? [] : commentBlocks,
     settings,
   );
+}
+
+function maybeDisplayShowBlockedControls(
+  syncSuccessRepos: RepoState[],
+  notMyTurnReviewRequestBlocks: ReviewRequestBlock[],
+  myPrBlocks: MyPrBlock[],
+  commentBlocks: CommentBlock[],
+) {
+  let someBlockedOrSnoozed = false;
+  someBlockedOrSnoozed = syncSuccessRepos
+    .flatMap((r) => r.lastSuccessfulSyncResult.requestsForMyReview)
+    .some((r) =>
+      notMyTurnReviewRequestBlocks.some((block) => r.isBlockedBy(block)),
+    );
+  someBlockedOrSnoozed =
+    someBlockedOrSnoozed ||
+    syncSuccessRepos
+      .flatMap((r) => r.lastSuccessfulSyncResult.myPRs)
+      .some((r) => myPrBlocks.some((block) => r.isBlockedBy(block)));
+  someBlockedOrSnoozed =
+    someBlockedOrSnoozed ||
+    syncSuccessRepos
+      .flatMap((r) => r.lastSuccessfulSyncResult.comments)
+      .some((r) => commentBlocks.some((block) => r.isBlockedBy(block)));
+  if (someBlockedOrSnoozed) {
+    (
+      document.getElementById("showBlockedSpan") as HTMLInputElement
+    ).style.visibility = "visible";
+  }
 }
 
 const REVIEW_REQUSTED_SVG =
