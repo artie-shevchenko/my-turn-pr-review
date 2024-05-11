@@ -41,9 +41,9 @@ export class RepoSyncResult {
   isRecent(lastSyncDurationMillis: number): boolean {
     const startIsWithinLast5Minutes =
       this.syncStartUnixMillis >= Date.now() - 1000 * 60 * 5;
-    const isWithin3SyncsDuration =
-      Date.now() - this.syncStartUnixMillis < 3 * lastSyncDurationMillis;
-    return startIsWithinLast5Minutes || isWithin3SyncsDuration;
+    const isWithin5SyncsDuration =
+      Date.now() - this.syncStartUnixMillis < 5 * lastSyncDurationMillis;
+    return startIsWithinLast5Minutes || isWithin5SyncsDuration;
   }
 
   // Probably better replaced with a dto interface. See
