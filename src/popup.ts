@@ -194,16 +194,13 @@ async function updatePopupPage() {
     myPrBlocks,
     commentBlocks,
   );
-  const showBlocked = (
-    document.getElementById("showBlocked") as HTMLInputElement
-  ).checked;
   return populateFromState(
     syncSuccessRepos,
     syncFailureRepos,
     unsyncedRepos,
-    showBlocked ? [] : myPrBlocks,
-    showBlocked ? [] : reviewRequestBlocks,
-    showBlocked ? [] : commentBlocks,
+    myPrBlocks,
+    reviewRequestBlocks,
+    commentBlocks,
     settings,
   );
 }
@@ -257,32 +254,6 @@ const APPROVED_SVG =
 
 const SYNC_IN_PROGRESS_MSG = "Sync with GitHub in progress...";
 
-function addSnoozeCell(
-  row: HTMLTableRowElement,
-  reviewRequest: ReviewRequest,
-  snoozeImgId: string,
-  cellIndex: number,
-) {
-  const snoozeCell = row.insertCell(cellIndex);
-  snoozeCell.align = "center";
-  snoozeCell.innerHTML =
-    '<img src="icons/snooze256.png" style="cursor: pointer; width: 20px;" id="' +
-    snoozeImgId +
-    '" alt="Snooze till tomorrow" title="I\'ll take a look tomorrow"/>';
-  document.getElementById(snoozeImgId).addEventListener("click", () => {
-    // Quick turnaround is super important in code review so hardcode 1d
-    const expireDate = new Date();
-    expireDate.setHours(33);
-    addReviewRequestBlock(
-      new ReviewRequestBlock(
-        reviewRequest.pr.url,
-        reviewRequest.reviewRequestedAtUnixMillis(),
-        expireDate.getTime(),
-      ),
-    ).then(() => updatePopupPage());
-  });
-}
-
 async function populateFromState(
   syncSuccessRepos: RepoState[],
   syncFailureRepos: RepoState[],
@@ -295,6 +266,15 @@ async function populateFromState(
   document.getElementById(
     "myReviewRequestedNotMyTurnHeaderColumn",
   ).style.display = "none";
+
+  const showBlocked = (
+    document.getElementById("showBlocked") as HTMLInputElement
+  ).checked;
+  if (showBlocked) {
+    myPrBlocks = [];
+    reviewRequestBlocks = [];
+    commentBlocks = [];
+  }
 
   const repoWarnSection = document.getElementById("repoWarn");
   let badCredentialsErrorsOnly = false;
@@ -496,6 +476,7 @@ async function populateFromState(
       reviewRequest,
       "snoozeMyReviewRequest" + i,
       columnIndex++,
+      showBlocked,
     );
 
     if (
@@ -506,19 +487,24 @@ async function populateFromState(
       // #NOT_MATURE: partially duplicated below in my team review requests:
       const notMyTurnCell = row.insertCell(columnIndex++);
       notMyTurnCell.align = "center";
-      const notMyTurnImgId = "notMyTurnMyReviewRequest" + i;
-      notMyTurnCell.innerHTML =
-        '<img src="icons/xMark16.png" style="cursor: pointer; width: 12px;" id="' +
-        notMyTurnImgId +
-        '" alt="Not my turn" title="Not my turn / Ignore"/>';
-      document.getElementById(notMyTurnImgId).addEventListener("click", () => {
-        addReviewRequestBlock(
-          new ReviewRequestBlock(
-            reviewRequest.pr.url,
-            reviewRequest.reviewRequestedAtUnixMillis(),
-          ),
-        ).then(() => updatePopupPage());
-      });
+      // hide buttons to block if showing blocked (maybe better to hide the column instead)
+      if (!showBlocked) {
+        const notMyTurnImgId = "notMyTurnMyReviewRequest" + i;
+        notMyTurnCell.innerHTML =
+          '<img src="icons/xMark16.png" style="cursor: pointer; width: 12px;" id="' +
+          notMyTurnImgId +
+          '" alt="Not my turn" title="Not my turn / Ignore"/>';
+        document
+          .getElementById(notMyTurnImgId)
+          .addEventListener("click", () => {
+            addReviewRequestBlock(
+              new ReviewRequestBlock(
+                reviewRequest.pr.url,
+                reviewRequest.reviewRequestedAtUnixMillis(),
+              ),
+            ).then(() => updatePopupPage());
+          });
+      }
       document.getElementById(
         "myReviewRequestedNotMyTurnHeaderColumn",
       ).style.display = "";
@@ -550,24 +536,33 @@ async function populateFromState(
     authorCell.innerHTML = "@" + reviewRequest.pr.authorLogin;
     authorCell.className = "authorColumn";
 
-    addSnoozeCell(row, reviewRequest, "snoozeMyTeamReviewRequest" + i, 4);
+    addSnoozeCell(
+      row,
+      reviewRequest,
+      "snoozeMyTeamReviewRequest" + i,
+      4,
+      showBlocked,
+    );
 
     // #NOT_MATURE: partially duplicated above in my review requests:
     const notMyTurnCell = row.insertCell(5);
     notMyTurnCell.align = "center";
-    const notMyTurnImgId = "notMyTurnMyTeamReviewRequest" + i;
-    notMyTurnCell.innerHTML =
-      '<img src="icons/xMark16.png" style="cursor: pointer; width: 12px;" id="' +
-      notMyTurnImgId +
-      '" alt="Not my turn" title="Not my turn / Ignore"/>';
-    document.getElementById(notMyTurnImgId).addEventListener("click", () => {
-      addReviewRequestBlock(
-        new ReviewRequestBlock(
-          reviewRequest.pr.url,
-          reviewRequest.reviewRequestedAtUnixMillis(),
-        ),
-      ).then(() => updatePopupPage());
-    });
+    // hide buttons to block if showing blocked (maybe better to hide the column instead)
+    if (!showBlocked) {
+      const notMyTurnImgId = "notMyTurnMyTeamReviewRequest" + i;
+      notMyTurnCell.innerHTML =
+        '<img src="icons/xMark16.png" style="cursor: pointer; width: 12px;" id="' +
+        notMyTurnImgId +
+        '" alt="Not my turn" title="Not my turn / Ignore"/>';
+      document.getElementById(notMyTurnImgId).addEventListener("click", () => {
+        addReviewRequestBlock(
+          new ReviewRequestBlock(
+            reviewRequest.pr.url,
+            reviewRequest.reviewRequestedAtUnixMillis(),
+          ),
+        ).then(() => updatePopupPage());
+      });
+    }
   }
 
   // Iterate over the myPRs array and create rows for each entry
@@ -626,26 +621,29 @@ async function populateFromState(
     const notMyTurnCell = row.insertCell(3);
     notMyTurnCell.align = "center";
     notMyTurnCell.className = "notMyTurnColumn";
-    notMyTurnCell.innerHTML =
-      '<img src="icons/xMark16.png" style="cursor: pointer; width: 12px;" id="notMyTurn' +
-      i +
-      '" alt="Not my turn" title="Not my turn / Ignore"/>';
-    document.getElementById("notMyTurn" + i).addEventListener("click", () => {
-      if (
-        !confirm(
-          "That would remove PR from the list until there is a new review ready. Sure it's not your turn now?",
-        )
-      ) {
-        return;
-      }
-      addMyPrBlock(
-        new MyPrBlock(
-          myPR.pr.url,
-          // should never be null here:
-          myPR.getLastReviewSubmittedUnixMillis(),
-        ),
-      ).then(() => updatePopupPage());
-    });
+    // hide buttons to block if showing blocked (maybe better to hide the column instead)
+    if (!showBlocked) {
+      notMyTurnCell.innerHTML =
+        '<img src="icons/xMark16.png" style="cursor: pointer; width: 12px;" id="notMyTurn' +
+        i +
+        '" alt="Not my turn" title="Not my turn / Ignore"/>';
+      document.getElementById("notMyTurn" + i).addEventListener("click", () => {
+        if (
+          !confirm(
+            "That would remove PR from the list until there is a new review ready. Sure it's not your turn now?",
+          )
+        ) {
+          return;
+        }
+        addMyPrBlock(
+          new MyPrBlock(
+            myPR.pr.url,
+            // should never be null here:
+            myPR.getLastReviewSubmittedUnixMillis(),
+          ),
+        ).then(() => updatePopupPage());
+      });
+    }
   }
 
   // Iterate over the comments array and create rows for each entry
@@ -686,18 +684,52 @@ async function populateFromState(
     const notMyTurnCell = row.insertCell(5);
     notMyTurnCell.align = "center";
     notMyTurnCell.className = "notMyTurnColumn";
-    notMyTurnCell.innerHTML =
-      '<img src="icons/xMark16.png" style="cursor: pointer; width: 12px;" id="blockComment' +
-      i +
-      '" alt="Not my turn" title="Not my turn / Ignore"/>';
-    document
-      .getElementById("blockComment" + i)
-      .addEventListener("click", () => {
-        addCommentBlock(new CommentBlock(comment.url)).then(() =>
-          updatePopupPage(),
-        );
-      });
+    // hide buttons to block if showing blocked (maybe better to hide the column instead)
+    if (!showBlocked) {
+      notMyTurnCell.innerHTML =
+        '<img src="icons/xMark16.png" style="cursor: pointer; width: 12px;" id="blockComment' +
+        i +
+        '" alt="Not my turn" title="Not my turn / Ignore"/>';
+      document
+        .getElementById("blockComment" + i)
+        .addEventListener("click", () => {
+          addCommentBlock(new CommentBlock(comment.url)).then(() =>
+            updatePopupPage(),
+          );
+        });
+    }
   }
+}
+
+function addSnoozeCell(
+  row: HTMLTableRowElement,
+  reviewRequest: ReviewRequest,
+  snoozeImgId: string,
+  cellIndex: number,
+  showBlocked: boolean,
+) {
+  const snoozeCell = row.insertCell(cellIndex);
+  snoozeCell.align = "center";
+  if (showBlocked) {
+    // hide buttons to snooze if showing snoozed/blocked (maybe better to hide the column instead)
+    return;
+  }
+  snoozeCell.innerHTML =
+    '<img src="icons/snooze256.png" style="cursor: pointer; width: 20px;" id="' +
+    snoozeImgId +
+    '" alt="Snooze till tomorrow" title="I\'ll take a look tomorrow"/>';
+  document.getElementById(snoozeImgId).addEventListener("click", () => {
+    // Quick turnaround is super important in code review so hardcode 1d
+    const expireDate = new Date();
+    expireDate.setHours(33);
+    addReviewRequestBlock(
+      new ReviewRequestBlock(
+        reviewRequest.pr.url,
+        reviewRequest.reviewRequestedAtUnixMillis(),
+        expireDate.getTime(),
+      ),
+    ).then(() => updatePopupPage());
+  });
 }
 
 function deleteAllRows(htmlTableElement: HTMLTableElement) {
