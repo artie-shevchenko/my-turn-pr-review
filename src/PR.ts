@@ -9,7 +9,7 @@ export class PR {
     url: string,
     name: string,
     authorLogin: string,
-    isDraft: boolean = undefined,
+    isDraft?: boolean,
   ) {
     this.url = url;
     this.name = name;

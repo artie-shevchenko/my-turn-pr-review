@@ -12,18 +12,18 @@ export class ReviewRequest {
   // #NOT_MATURE: that's basically reviewRequestedAtUnixMillis (it used to be more complicated in
   // the past):
   /* Is undefined for team review request. */
-  firstTimeObservedUnixMillis: number | undefined;
-  reasonNotIgnored: ReasonNotIgnored | undefined;
+  firstTimeObservedUnixMillis?: number;
+  reasonNotIgnored?: ReasonNotIgnored;
   // if present then it's a review request for my team, not for me personally:
-  teamName: string | undefined;
+  teamName?: string;
   // #NOT_MATURE: lazily populated in popup.ts:
-  repoFullName: string;
+  repoFullName?: string;
 
   constructor(
     pr: PR,
-    firstTimeObservedUnixMillis: number,
-    reasonNotIgnored = undefined as ReasonNotIgnored,
-    teamName = undefined as string,
+    firstTimeObservedUnixMillis?: number,
+    reasonNotIgnored?: ReasonNotIgnored,
+    teamName?: string,
   ) {
     this.pr = pr;
     this.firstTimeObservedUnixMillis = firstTimeObservedUnixMillis;

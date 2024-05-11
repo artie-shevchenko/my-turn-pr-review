@@ -5,13 +5,13 @@ import { Comment } from "./comment";
 /** A successful or failed sync. */
 export class RepoSyncResult {
   /* Undefined for a failed sync. */
-  requestsForMyReview: ReviewRequest[];
+  requestsForMyReview?: ReviewRequest[];
 
   /* Undefined for a failed sync. */
-  myPRs: MyPR[];
+  myPRs?: MyPR[];
 
   /* Undefined for a failed sync. */
-  comments: Comment[];
+  comments?: Comment[];
 
   // see Settings#ignoreCommentsMoreThanXDaysOld
   ignoredCommentsMoreThanXDaysOld: number;
@@ -19,15 +19,16 @@ export class RepoSyncResult {
   syncStartUnixMillis: number;
 
   /* Undefined for a successful sync. */
-  errorMsg: string;
+  errorMsg?: string;
 
+  /** Params may be undefined if used as a builder (hack). */
   constructor(
-    requestsForMyReview: ReviewRequest[] = undefined,
-    myPRs: MyPR[] = undefined,
-    comments: Comment[] = undefined,
-    ignoredCommentsMoreThanXDaysOld: number = undefined,
-    syncStartUnixMillis: number = undefined,
-    errorMsg: string = undefined,
+    requestsForMyReview?: ReviewRequest[],
+    myPRs?: MyPR[],
+    comments?: Comment[],
+    ignoredCommentsMoreThanXDaysOld?: number,
+    syncStartUnixMillis?: number,
+    errorMsg?: string,
   ) {
     this.requestsForMyReview = requestsForMyReview;
     this.myPRs = myPRs;

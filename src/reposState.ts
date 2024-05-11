@@ -26,11 +26,11 @@ export class ReposState {
   }
 
   async updateIcon(
-    monitoringEnabledRepos: Repo[] = undefined,
-    myPrBlocks: MyPrBlock[] = undefined,
-    reviewRequestBlocks: ReviewRequestBlock[] = undefined,
-    commentBlocks: CommentBlock[] = undefined,
-    settings: Settings = undefined,
+    monitoringEnabledRepos?: Repo[],
+    myPrBlocks?: MyPrBlock[],
+    reviewRequestBlocks?: ReviewRequestBlock[],
+    commentBlocks?: CommentBlock[],
+    settings?: Settings,
   ): Promise<SyncStatus> {
     if (!monitoringEnabledRepos) {
       monitoringEnabledRepos = await getMonitoringEnabledRepos();

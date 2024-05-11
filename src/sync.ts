@@ -95,11 +95,11 @@ export async function sync(myGitHubUser: GitHubUser) {
   // It's probably better to do these GitHub requests in a sequential manner so that GitHub is not
   // tempted to block them even if user monitors many repos:
   for (const repo of repos) {
-    let repoState = prevRepoStateByFullName.get(repo.fullName());
-    if (!repoState) {
-      repoState = new RepoState(repo.fullName());
+    let repoStateBuilder = prevRepoStateByFullName.get(repo.fullName());
+    if (!repoStateBuilder) {
+      repoStateBuilder = new RepoState(repo.fullName());
     }
-    repoStateByFullNameBuilder.set(repo.fullName(), repoState);
+    repoStateByFullNameBuilder.set(repo.fullName(), repoStateBuilder);
 
     const repoRecentNotifications = recentNotifications.filter(
       (n) =>
@@ -108,7 +108,7 @@ export async function sync(myGitHubUser: GitHubUser) {
     );
 
     await syncGitHubRepo(
-      repoState,
+      repoStateBuilder,
       repoRecentNotifications,
       myGitHubUser,
       settings,

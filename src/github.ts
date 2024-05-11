@@ -100,10 +100,10 @@ export function resetGitHubCallsCounter() {
 }
 
 /**
- * @param repo The repo state will be updated as a result of the call.
+ * @param repoStateBuilder Will be updated as a result of the call.
  */
 export async function syncGitHubRepo(
-  repo: RepoState,
+  repoStateBuilder: RepoState,
   recentNotifications: ListNotificationsResponseDataType[0][],
   myGitHubUser: GitHubUser,
   settings: Settings,
@@ -118,7 +118,7 @@ export async function syncGitHubRepo(
 
     const myPRsToSyncBuilder = [] as PullsListResponseDataType[0][];
     repoSyncResult.requestsForMyReview = await syncRequestsForMyReview(
-      repo,
+      repoStateBuilder,
       myGitHubUser,
       settings,
       myPRsToSyncBuilder,
@@ -129,7 +129,7 @@ export async function syncGitHubRepo(
 
     repoSyncResult.myPRs = [] as MyPR[];
     for (const pr of myPRsToSync) {
-      const myPR = await syncMyPR(pr, repo);
+      const myPR = await syncMyPR(pr, repoStateBuilder);
       repoSyncResult.myPRs.push(myPR);
     }
 
@@ -141,12 +141,12 @@ export async function syncGitHubRepo(
       settings,
     );
 
-    repo.lastSuccessfulSyncResult = repoSyncResult;
-    repo.lastSyncResult = repoSyncResult;
+    repoStateBuilder.lastSuccessfulSyncResult = repoSyncResult;
+    repoStateBuilder.lastSyncResult = repoSyncResult;
   } catch (e) {
-    console.warn(`Error syncing ${repo.fullName}. Ignoring it.`, e);
+    console.warn(`Error syncing ${repoStateBuilder.fullName}. Ignoring it.`, e);
     repoSyncResult.errorMsg = e + "";
-    repo.lastSyncResult = repoSyncResult;
+    repoStateBuilder.lastSyncResult = repoSyncResult;
   }
 }
 

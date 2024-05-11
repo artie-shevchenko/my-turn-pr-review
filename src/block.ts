@@ -16,12 +16,12 @@ export class ReviewRequestBlock {
   prUrl: string;
   reviewRequestedAtUnixMillis: number;
   // defined for snooze only
-  expireAtUnixMillis: number;
+  expireAtUnixMillis?: number;
 
   constructor(
     prUrl: string,
     reviewRequestedAtUnixMillis: number,
-    expireAtUnixMillis: number = undefined,
+    expireAtUnixMillis?: number,
   ) {
     this.prUrl = prUrl;
     this.reviewRequestedAtUnixMillis = reviewRequestedAtUnixMillis;

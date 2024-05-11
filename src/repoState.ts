@@ -5,14 +5,15 @@ import { Settings } from "./settings";
 
 export class RepoState {
   readonly fullName: string;
-  lastSyncResult: RepoSyncResult;
+  // Undefined only if the object is still under construction (hack)
+  lastSyncResult?: RepoSyncResult;
   // Undefined if there were no successful syncs.
-  lastSuccessfulSyncResult: RepoSyncResult;
+  lastSuccessfulSyncResult?: RepoSyncResult;
 
   constructor(
-    repoFullName: string = undefined,
-    lastSyncResult: RepoSyncResult = undefined,
-    lastSuccessfulSyncResult: RepoSyncResult = undefined,
+    repoFullName: string,
+    lastSyncResult?: RepoSyncResult,
+    lastSuccessfulSyncResult?: RepoSyncResult,
   ) {
     this.fullName = repoFullName;
     this.lastSyncResult = lastSyncResult;
