@@ -719,9 +719,9 @@ function addSnoozeCell(
     snoozeImgId +
     '" alt="Snooze till tomorrow" title="I\'ll take a look tomorrow"/>';
   document.getElementById(snoozeImgId).addEventListener("click", () => {
-    // Quick turnaround is super important in code review so hardcode 1d
+    // Quick turnaround is super important in code review so hardcode "till 4am tomorrow"
     const expireDate = new Date();
-    expireDate.setHours(33);
+    expireDate.setHours(28);
     addReviewRequestBlock(
       new ReviewRequestBlock(
         reviewRequest.pr.url,
