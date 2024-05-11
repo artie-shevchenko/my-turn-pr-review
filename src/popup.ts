@@ -1,7 +1,7 @@
 import "../styles/popup.scss";
 import { Octokit } from "@octokit/rest";
 import { GitHubUser } from "./gitHubUser";
-import { CommentBlock, MyPrBlock, ReviewRequestBlock } from "./notMyTurnBlock";
+import { CommentBlock, MyPrBlock, ReviewRequestBlock } from "./block";
 import { Repo } from "./repo";
 import { RepoState } from "./repoState";
 import { ReasonNotIgnored, ReviewRequest } from "./reviewRequest";
@@ -9,14 +9,14 @@ import { ReviewState } from "./reviewState";
 import { Settings } from "./settings";
 import {
   addCommentBlock,
-  addNotMyTurnBlock,
-  addNotMyTurnReviewRequestBlock,
+  addMyPrBlock,
+  addReviewRequestBlock,
   getCommentBlockList,
   getGitHubUser,
   getLastSyncDurationMillis,
   getMonitoringEnabledRepos,
-  getNotMyTurnBlockList,
-  getNotMyTurnReviewRequestBlockList,
+  getMyPrBlockList,
+  getReviewRequestBlockList,
   getReposState,
   getSettings,
   storeGitHubUser,
@@ -139,15 +139,14 @@ function showError(e: Error) {
 async function updatePopupPage() {
   const reposState = await getReposState();
   const repos: Repo[] = await getMonitoringEnabledRepos();
-  const myPrBlocks = await getNotMyTurnBlockList();
-  const notMyTurnReviewRequestBlocks =
-    await getNotMyTurnReviewRequestBlockList();
+  const myPrBlocks = await getMyPrBlockList();
+  const reviewRequestBlocks = await getReviewRequestBlockList();
   const commentBlocks = await getCommentBlockList();
   const settings = await getSettings();
   await reposState.updateIcon(
     repos,
     myPrBlocks,
-    notMyTurnReviewRequestBlocks,
+    reviewRequestBlocks,
     commentBlocks,
     settings,
   );
@@ -191,7 +190,7 @@ async function updatePopupPage() {
 
   maybeDisplayShowBlockedControls(
     syncSuccessRepos,
-    notMyTurnReviewRequestBlocks,
+    reviewRequestBlocks,
     myPrBlocks,
     commentBlocks,
   );
@@ -203,7 +202,7 @@ async function updatePopupPage() {
     syncFailureRepos,
     unsyncedRepos,
     showBlocked ? [] : myPrBlocks,
-    showBlocked ? [] : notMyTurnReviewRequestBlocks,
+    showBlocked ? [] : reviewRequestBlocks,
     showBlocked ? [] : commentBlocks,
     settings,
   );
@@ -211,16 +210,14 @@ async function updatePopupPage() {
 
 function maybeDisplayShowBlockedControls(
   syncSuccessRepos: RepoState[],
-  notMyTurnReviewRequestBlocks: ReviewRequestBlock[],
+  reviewRequestBlocks: ReviewRequestBlock[],
   myPrBlocks: MyPrBlock[],
   commentBlocks: CommentBlock[],
 ) {
   let someBlockedOrSnoozed = false;
   someBlockedOrSnoozed = syncSuccessRepos
     .flatMap((r) => r.lastSuccessfulSyncResult.requestsForMyReview)
-    .some((r) =>
-      notMyTurnReviewRequestBlocks.some((block) => r.isBlockedBy(block)),
-    );
+    .some((r) => reviewRequestBlocks.some((block) => r.isBlockedBy(block)));
   someBlockedOrSnoozed =
     someBlockedOrSnoozed ||
     syncSuccessRepos
@@ -276,7 +273,7 @@ function addSnoozeCell(
     // Quick turnaround is super important in code review so hardcode 1d
     const expireDate = new Date();
     expireDate.setHours(33);
-    addNotMyTurnReviewRequestBlock(
+    addReviewRequestBlock(
       new ReviewRequestBlock(
         reviewRequest.pr.url,
         reviewRequest.reviewRequestedAtUnixMillis(),
@@ -290,8 +287,8 @@ async function populateFromState(
   syncSuccessRepos: RepoState[],
   syncFailureRepos: RepoState[],
   unsyncedRepos: Repo[],
-  notMyTurnBlocks: MyPrBlock[],
-  notMyTurnReviewRequestBlocks: ReviewRequestBlock[],
+  myPrBlocks: MyPrBlock[],
+  reviewRequestBlocks: ReviewRequestBlock[],
   commentBlocks: CommentBlock[],
   settings: Settings,
 ) {
@@ -384,7 +381,7 @@ async function populateFromState(
       });
     })
     .filter((reviewRequest) =>
-      reviewRequest.isMyTurn(notMyTurnReviewRequestBlocks, settings),
+      reviewRequest.isMyTurn(reviewRequestBlocks, settings),
     );
   const sortedRequestsForMyReview = reviewRequests
     .filter((reviewRequest) => !reviewRequest.isTeamReviewRequest())
@@ -411,7 +408,7 @@ async function populateFromState(
         return v;
       });
     })
-    .filter((pr) => pr.isMyTurn(notMyTurnBlocks, settings))
+    .filter((pr) => pr.isMyTurn(myPrBlocks, settings))
     .sort((a, b) => {
       if (a.repoFullName === b.repoFullName) {
         return a.pr.name.localeCompare(b.pr.name);
@@ -515,7 +512,7 @@ async function populateFromState(
         notMyTurnImgId +
         '" alt="Not my turn" title="Not my turn / Ignore"/>';
       document.getElementById(notMyTurnImgId).addEventListener("click", () => {
-        addNotMyTurnReviewRequestBlock(
+        addReviewRequestBlock(
           new ReviewRequestBlock(
             reviewRequest.pr.url,
             reviewRequest.reviewRequestedAtUnixMillis(),
@@ -564,7 +561,7 @@ async function populateFromState(
       notMyTurnImgId +
       '" alt="Not my turn" title="Not my turn / Ignore"/>';
     document.getElementById(notMyTurnImgId).addEventListener("click", () => {
-      addNotMyTurnReviewRequestBlock(
+      addReviewRequestBlock(
         new ReviewRequestBlock(
           reviewRequest.pr.url,
           reviewRequest.reviewRequestedAtUnixMillis(),
@@ -641,7 +638,7 @@ async function populateFromState(
       ) {
         return;
       }
-      addNotMyTurnBlock(
+      addMyPrBlock(
         new MyPrBlock(
           myPR.pr.url,
           // should never be null here:

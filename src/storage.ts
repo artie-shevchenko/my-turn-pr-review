@@ -2,7 +2,7 @@ import { getBucket } from "@extend-chrome/storage";
 import { ReposState } from "./reposState";
 import { Settings } from "./settings";
 import { GitHubUser } from "./gitHubUser";
-import { CommentBlock, MyPrBlock, ReviewRequestBlock } from "./notMyTurnBlock";
+import { CommentBlock, MyPrBlock, ReviewRequestBlock } from "./block";
 import { Repo } from "./repo";
 import { RepoState } from "./repoState";
 
@@ -199,69 +199,67 @@ export async function getSettings(): Promise<Settings> {
 
 const MAX_ITEM_BYTES_IN_SYNC_STORAGE = 8000 / 2; // to be on a safe side
 
-// NotMyTurnBlock storage:
+// MyPrBlock storage:
 
-class NotMyTurnBlockList {
+class MyPrBlockList {
+  // legacy name, for backward-compatibility
   notMyTurnBlockList: MyPrBlock[];
 
-  constructor(notMyTurnBlockList: MyPrBlock[]) {
-    this.notMyTurnBlockList = notMyTurnBlockList;
+  constructor(myPrBlockList: MyPrBlock[]) {
+    this.notMyTurnBlockList = myPrBlockList;
   }
 }
 
-const NOT_MY_TURN_BLOCK_LIST_KEY_BASE = "notMyTurnBlockList";
+const MY_PR_BLOCK_LIST_KEY_BASE = "notMyTurnBlockList";
 
-export async function addNotMyTurnBlock(block: MyPrBlock) {
-  return getNotMyTurnBlockList().then((list) => {
+export async function addMyPrBlock(block: MyPrBlock) {
+  return getMyPrBlockList().then((list) => {
     list.push(block);
-    return storeNotMyTurnBlockList(list);
+    return storeMyPrBlockList(list);
   });
 }
 
-export async function storeNotMyTurnBlockList(list: MyPrBlock[]) {
+export async function storeMyPrBlockList(list: MyPrBlock[]) {
   const chunks = splitArray(list, MAX_ITEM_BYTES_IN_SYNC_STORAGE);
   for (let i = 0; i < chunks.length; i++) {
-    const store = getBucket<NotMyTurnBlockList>(
-      NOT_MY_TURN_BLOCK_LIST_KEY_BASE + i,
+    const store = getBucket<MyPrBlockList>(
+      MY_PR_BLOCK_LIST_KEY_BASE + i,
       "sync",
     );
     await store.set(chunks[i]);
   }
-  const store = getBucket<NotMyTurnBlockList>(
-    NOT_MY_TURN_BLOCK_LIST_KEY_BASE + chunks.length,
+  const store = getBucket<MyPrBlockList>(
+    MY_PR_BLOCK_LIST_KEY_BASE + chunks.length,
     "sync",
   );
   await store.clear;
 }
 
-function splitArray(
-  blocks: MyPrBlock[],
-  maxBytes: number,
-): NotMyTurnBlockList[] {
-  const resultBuilder = [] as NotMyTurnBlockList[];
+function splitArray(blocks: MyPrBlock[], maxBytes: number): MyPrBlockList[] {
+  const resultBuilder = [] as MyPrBlockList[];
   let itemBuilder = [] as MyPrBlock[];
   for (const block of blocks) {
     if (getBytes(itemBuilder) + getBytes([block]) > maxBytes) {
-      resultBuilder.push(new NotMyTurnBlockList(itemBuilder));
+      resultBuilder.push(new MyPrBlockList(itemBuilder));
       itemBuilder = [];
     }
     itemBuilder.push(block);
   }
-  resultBuilder.push(new NotMyTurnBlockList(itemBuilder));
+  resultBuilder.push(new MyPrBlockList(itemBuilder));
   return resultBuilder;
 }
 
-function getBytes(notMyTurnBlockList: MyPrBlock[]) {
-  return new Blob([JSON.stringify(notMyTurnBlockList)]).size;
+function getBytes(myPrBlockList: MyPrBlock[]) {
+  return new Blob([JSON.stringify(myPrBlockList)]).size;
 }
 
-export async function getNotMyTurnBlockList(): Promise<MyPrBlock[]> {
+export async function getMyPrBlockList(): Promise<MyPrBlock[]> {
   const resultBuilder = [] as MyPrBlock[];
   let chunkIndex = 0;
   // eslint-disable-next-line no-constant-condition
   while (true) {
-    const store = getBucket<NotMyTurnBlockList>(
-      NOT_MY_TURN_BLOCK_LIST_KEY_BASE + chunkIndex,
+    const store = getBucket<MyPrBlockList>(
+      MY_PR_BLOCK_LIST_KEY_BASE + chunkIndex,
       "sync",
     );
     const list = await store.get();
@@ -275,44 +273,40 @@ export async function getNotMyTurnBlockList(): Promise<MyPrBlock[]> {
   return resultBuilder;
 }
 
-// NotMyTurnReviewRequestBlock storage:
+// ReviewRequestBlock storage:
 
-class NotMyTurnReviewRequestBlockList {
+class ReviewRequestBlockList {
+  // legacy name, for backward-compatibility
   notMyTurnReviewRequestBlockList: ReviewRequestBlock[];
 
-  constructor(notMyTurnReviewRequestBlockList: ReviewRequestBlock[]) {
-    this.notMyTurnReviewRequestBlockList = notMyTurnReviewRequestBlockList;
+  constructor(reviewRequestBlockList: ReviewRequestBlock[]) {
+    this.notMyTurnReviewRequestBlockList = reviewRequestBlockList;
   }
 }
 
-const NOT_MY_TURN_REVIEW_REQUEST_BLOCK_LIST_KEY_BASE =
-  "notMyTurnReviewRequestBlockList";
+const REVIEW_REQUEST_BLOCK_LIST_KEY_BASE = "notMyTurnReviewRequestBlockList";
 
-export async function addNotMyTurnReviewRequestBlock(
-  block: ReviewRequestBlock,
-) {
-  return getNotMyTurnReviewRequestBlockList().then((list) => {
+export async function addReviewRequestBlock(block: ReviewRequestBlock) {
+  return getReviewRequestBlockList().then((list) => {
     list.push(block);
-    return storeNotMyTurnReviewRequestBlockList(list);
+    return storeReviewRequestBlockList(list);
   });
 }
 
-export async function storeNotMyTurnReviewRequestBlockList(
-  list: ReviewRequestBlock[],
-) {
+export async function storeReviewRequestBlockList(list: ReviewRequestBlock[]) {
   const chunks = splitReviewRequestBlockArray(
     list,
     MAX_ITEM_BYTES_IN_SYNC_STORAGE,
   );
   for (let i = 0; i < chunks.length; i++) {
-    const store = getBucket<NotMyTurnReviewRequestBlockList>(
-      NOT_MY_TURN_REVIEW_REQUEST_BLOCK_LIST_KEY_BASE + i,
+    const store = getBucket<ReviewRequestBlockList>(
+      REVIEW_REQUEST_BLOCK_LIST_KEY_BASE + i,
       "sync",
     );
     await store.set(chunks[i]);
   }
-  const store = getBucket<NotMyTurnReviewRequestBlockList>(
-    NOT_MY_TURN_REVIEW_REQUEST_BLOCK_LIST_KEY_BASE + chunks.length,
+  const store = getBucket<ReviewRequestBlockList>(
+    REVIEW_REQUEST_BLOCK_LIST_KEY_BASE + chunks.length,
     "sync",
   );
   await store.clear;
@@ -321,8 +315,8 @@ export async function storeNotMyTurnReviewRequestBlockList(
 function splitReviewRequestBlockArray(
   blocks: ReviewRequestBlock[],
   maxBytes: number,
-): NotMyTurnReviewRequestBlockList[] {
-  const resultBuilder = [] as NotMyTurnReviewRequestBlockList[];
+): ReviewRequestBlockList[] {
+  const resultBuilder = [] as ReviewRequestBlockList[];
   let itemBuilder = [] as ReviewRequestBlock[];
   for (const block of blocks) {
     if (
@@ -330,30 +324,30 @@ function splitReviewRequestBlockArray(
         getReviewRequestBlockBytes([block]) >
       maxBytes
     ) {
-      resultBuilder.push(new NotMyTurnReviewRequestBlockList(itemBuilder));
+      resultBuilder.push(new ReviewRequestBlockList(itemBuilder));
       itemBuilder = [];
     }
     itemBuilder.push(block);
   }
-  resultBuilder.push(new NotMyTurnReviewRequestBlockList(itemBuilder));
+  resultBuilder.push(new ReviewRequestBlockList(itemBuilder));
   return resultBuilder;
 }
 
 function getReviewRequestBlockBytes(
-  notMyTurnReviewRequestBlockList: ReviewRequestBlock[],
+  reviewRequestBlockList: ReviewRequestBlock[],
 ) {
-  return new Blob([JSON.stringify(notMyTurnReviewRequestBlockList)]).size;
+  return new Blob([JSON.stringify(reviewRequestBlockList)]).size;
 }
 
-export async function getNotMyTurnReviewRequestBlockList(): Promise<
+export async function getReviewRequestBlockList(): Promise<
   ReviewRequestBlock[]
 > {
   const resultBuilder = [] as ReviewRequestBlock[];
   let chunkIndex = 0;
   // eslint-disable-next-line no-constant-condition
   while (true) {
-    const store = getBucket<NotMyTurnReviewRequestBlockList>(
-      NOT_MY_TURN_REVIEW_REQUEST_BLOCK_LIST_KEY_BASE + chunkIndex,
+    const store = getBucket<ReviewRequestBlockList>(
+      REVIEW_REQUEST_BLOCK_LIST_KEY_BASE + chunkIndex,
       "sync",
     );
     const list = await store.get();

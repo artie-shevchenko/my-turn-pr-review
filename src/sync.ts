@@ -8,22 +8,22 @@ import {
   resetGitHubCallsCounter,
   syncGitHubRepo,
 } from "./github";
-import { CommentBlock, MyPrBlock, ReviewRequestBlock } from "./notMyTurnBlock";
+import { CommentBlock, MyPrBlock, ReviewRequestBlock } from "./block";
 import { Repo } from "./repo";
 import { ReposState } from "./reposState";
 import { RepoState } from "./repoState";
 import {
   getCommentBlockList,
   getGitHubUser,
-  getNotMyTurnBlockList,
-  getNotMyTurnReviewRequestBlockList,
+  getMyPrBlockList,
+  getReviewRequestBlockList,
   getRepos,
   getRepoStateByFullName,
   getSettings,
   storeCommentBlockList,
   storeLastSyncDurationMillis,
-  storeNotMyTurnBlockList,
-  storeNotMyTurnReviewRequestBlockList,
+  storeMyPrBlockList,
+  storeReviewRequestBlockList,
   storeRepoStateMap,
 } from "./storage";
 
@@ -70,9 +70,8 @@ export async function trySyncWithCredentials(gitHubUser: GitHubUser) {
  * Note: no concurrent calls!
  */
 export async function sync(myGitHubUser: GitHubUser) {
-  const prBlocksAtSyncStart = await getNotMyTurnBlockList();
-  const reviewRequestBlocksAtSyncStart =
-    await getNotMyTurnReviewRequestBlockList();
+  const prBlocksAtSyncStart = await getMyPrBlockList();
+  const reviewRequestBlocksAtSyncStart = await getReviewRequestBlockList();
   const commentBlocksAtSyncStart = await getCommentBlockList();
 
   resetGitHubCallsCounter();
@@ -120,7 +119,7 @@ export async function sync(myGitHubUser: GitHubUser) {
   // Update in background:
   storeRepoStateMap(repoStateByFullNameBuilder);
 
-  const prBlocksNow = await getNotMyTurnBlockList();
+  const prBlocksNow = await getMyPrBlockList();
   if (prBlocksNow.length === prBlocksAtSyncStart.length) {
     const monitoringDisabledRepos = allReposIncludingDisabled.filter(
       (v) => !v.monitoringEnabled,
@@ -133,7 +132,7 @@ export async function sync(myGitHubUser: GitHubUser) {
     );
   }
 
-  const reviewRequestBlocksNow = await getNotMyTurnReviewRequestBlockList();
+  const reviewRequestBlocksNow = await getReviewRequestBlockList();
   if (reviewRequestBlocksNow.length === reviewRequestBlocksAtSyncStart.length) {
     const monitoringDisabledRepos = allReposIncludingDisabled.filter(
       (v) => !v.monitoringEnabled,
@@ -169,7 +168,7 @@ export async function sync(myGitHubUser: GitHubUser) {
 
 async function maybeCleanUpObsoletePrBlocks(
   repoStates: RepoState[],
-  notMyTurnBlocksFromStorage: MyPrBlock[],
+  myPrBlocksFromStorage: MyPrBlock[],
   monitoringDisabledRepos: Repo[],
 ) {
   if (Math.random() > 0.01) {
@@ -183,7 +182,7 @@ async function maybeCleanUpObsoletePrBlocks(
   const activeBlocksBuilder = new Set<MyPrBlock>();
   for (const repoState of repoStates) {
     for (const myPR of repoState.lastSyncResult.myPRs) {
-      notMyTurnBlocksFromStorage
+      myPrBlocksFromStorage
         .filter((block) => myPR.isBlockedBy(block))
         .forEach((block) => activeBlocksBuilder.add(block));
     }
@@ -191,20 +190,20 @@ async function maybeCleanUpObsoletePrBlocks(
 
   // Preserve blocks in case monitoring for a repo is temporary disabled and then re-enabled:
   for (const repo of monitoringDisabledRepos) {
-    notMyTurnBlocksFromStorage
+    myPrBlocksFromStorage
       // #NOT_MATURE: yes there's a low chance of false positives but that's okay:
       .filter((v) => v.prUrl.includes(repo.fullName()))
       .forEach((v) => activeBlocksBuilder.add(v));
   }
 
-  if (notMyTurnBlocksFromStorage.length != activeBlocksBuilder.size) {
-    return storeNotMyTurnBlockList([...activeBlocksBuilder]);
+  if (myPrBlocksFromStorage.length != activeBlocksBuilder.size) {
+    return storeMyPrBlockList([...activeBlocksBuilder]);
   }
 }
 
 async function maybeCleanUpObsoleteReviewRequestBlocks(
   repoStates: RepoState[],
-  notMyTurnReviewRequestBlocks: ReviewRequestBlock[],
+  reviewRequestBlocks: ReviewRequestBlock[],
   monitoringDisabledRepos: Repo[],
 ) {
   if (Math.random() > 0.01) {
@@ -218,7 +217,7 @@ async function maybeCleanUpObsoleteReviewRequestBlocks(
   const activeBlocksBuilder = new Set<ReviewRequestBlock>();
   for (const repoState of repoStates) {
     for (const reviewRequest of repoState.lastSyncResult.requestsForMyReview) {
-      notMyTurnReviewRequestBlocks
+      reviewRequestBlocks
         .filter((block) => reviewRequest.isBlockedBy(block))
         .forEach((block) => activeBlocksBuilder.add(block));
     }
@@ -226,14 +225,14 @@ async function maybeCleanUpObsoleteReviewRequestBlocks(
 
   // Preserve blocks in case monitoring for a repo is temporary disabled and then re-enabled:
   for (const repo of monitoringDisabledRepos) {
-    notMyTurnReviewRequestBlocks
+    reviewRequestBlocks
       // #NOT_MATURE: yes there's a low chance of false positives but that's okay:
       .filter((v) => v.prUrl.includes(repo.fullName()))
       .forEach((v) => activeBlocksBuilder.add(v));
   }
 
-  if (notMyTurnReviewRequestBlocks.length != activeBlocksBuilder.size) {
-    return storeNotMyTurnReviewRequestBlockList([...activeBlocksBuilder]);
+  if (reviewRequestBlocks.length != activeBlocksBuilder.size) {
+    return storeReviewRequestBlockList([...activeBlocksBuilder]);
   }
 }
 

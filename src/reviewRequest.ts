@@ -1,4 +1,4 @@
-import { ReviewRequestBlock } from "./notMyTurnBlock";
+import { ReviewRequestBlock } from "./block";
 import { Settings } from "./settings";
 import { PR } from "./PR";
 
@@ -45,10 +45,7 @@ export class ReviewRequest {
     );
   }
 
-  isMyTurn(
-    notMyTurnReviewRequestBlocks: ReviewRequestBlock[],
-    settings: Settings,
-  ) {
+  isMyTurn(reviewRequestBlocks: ReviewRequestBlock[], settings: Settings) {
     if (
       settings.singleCommentIsReview &&
       this.reasonNotIgnored === ReasonNotIgnored.LIKELY_JUST_SINGLE_COMMENT
@@ -56,9 +53,7 @@ export class ReviewRequest {
       return false;
     }
 
-    return !notMyTurnReviewRequestBlocks.some((block) =>
-      this.isBlockedBy(block),
-    );
+    return !reviewRequestBlocks.some((block) => this.isBlockedBy(block));
   }
 
   isBlockedBy(block: ReviewRequestBlock): boolean {

@@ -10,7 +10,7 @@ import {
   getSettings,
   storeCommentBlockList,
   storeGitHubUser,
-  storeNotMyTurnBlockList,
+  storeMyPrBlockList,
   storeReposMap,
   storeRepoStateMap,
   storeSettings,
@@ -236,7 +236,7 @@ document
       .then(() => deleteSettings())
       .then(() => storeReposMap(new Map<string, Repo>()))
       .then(() => storeRepoStateMap(new Map<string, RepoState>()))
-      .then(() => storeNotMyTurnBlockList([]))
+      .then(() => storeMyPrBlockList([]))
       .then(() => storeCommentBlockList([]))
       .then(() => {
         chrome.action.setIcon({

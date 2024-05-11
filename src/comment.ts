@@ -1,4 +1,4 @@
-import { CommentBlock } from "./notMyTurnBlock";
+import { CommentBlock } from "./block";
 import { Settings } from "./settings";
 import { PR } from "./PR";
 

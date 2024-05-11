@@ -1,4 +1,4 @@
-import { CommentBlock, MyPrBlock, ReviewRequestBlock } from "./notMyTurnBlock";
+import { CommentBlock, MyPrBlock, ReviewRequestBlock } from "./block";
 import { SyncStatus } from "./reposState";
 import { RepoSyncResult } from "./repoSyncResult";
 import { Settings } from "./settings";
@@ -20,8 +20,8 @@ export class RepoState {
   }
 
   getSyncStatus(
-    notMyTurnBlocks: MyPrBlock[],
-    notMyTurnReviewRequestBlocks: ReviewRequestBlock[],
+    myPrBlocks: MyPrBlock[],
+    reviewRequestBlocks: ReviewRequestBlock[],
     commentBlocks: CommentBlock[],
     settings: Settings,
     lastSyncDurationMillis: number,
@@ -34,7 +34,7 @@ export class RepoState {
     if (
       this.lastSuccessfulSyncResult.requestsForMyReview.some(
         (reviewRequest) =>
-          reviewRequest.isMyTurn(notMyTurnReviewRequestBlocks, settings) &&
+          reviewRequest.isMyTurn(reviewRequestBlocks, settings) &&
           !reviewRequest.isTeamReviewRequest(),
       )
     ) {
@@ -42,7 +42,7 @@ export class RepoState {
     } else if (
       this.lastSuccessfulSyncResult.requestsForMyReview.some(
         (reviewRequest) =>
-          reviewRequest.isMyTurn(notMyTurnReviewRequestBlocks, settings) &&
+          reviewRequest.isMyTurn(reviewRequestBlocks, settings) &&
           reviewRequest.isTeamReviewRequest(),
       )
     ) {
@@ -52,7 +52,7 @@ export class RepoState {
     }
     // Yellow max based on myPRs. TODO(36): make it user-configurable:
     const myPRsStatus = this.lastSuccessfulSyncResult.myPRs.some((pr) =>
-      pr.isMyTurn(notMyTurnBlocks, settings),
+      pr.isMyTurn(myPrBlocks, settings),
     )
       ? SyncStatus.Yellow
       : SyncStatus.Green;

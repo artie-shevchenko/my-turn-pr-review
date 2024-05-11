@@ -1,4 +1,4 @@
-import { MyPrBlock } from "./notMyTurnBlock";
+import { MyPrBlock } from "./block";
 import { PR } from "./PR";
 import { ReviewState } from "./reviewState";
 import { Settings } from "./settings";
@@ -118,8 +118,8 @@ export class MyPR {
     );
   }
 
-  isMyTurn(notMyTurnBlocks: MyPrBlock[], settings: Settings): boolean {
-    const status = this.getStatus(notMyTurnBlocks, settings);
+  isMyTurn(blocks: MyPrBlock[], settings: Settings): boolean {
+    const status = this.getStatus(blocks, settings);
     // noinspection RedundantIfStatementJS
     if (
       status === MyPRReviewStatus.NONE ||
@@ -131,15 +131,12 @@ export class MyPR {
     }
   }
 
-  getStatus(
-    notMyTurnBlocks: MyPrBlock[],
-    settings: Settings,
-  ): MyPRReviewStatus {
+  getStatus(blocks: MyPrBlock[], settings: Settings): MyPRReviewStatus {
     if (this.reviewerStates.length === 0) {
       return MyPRReviewStatus.NONE;
     }
 
-    if (notMyTurnBlocks.some((block) => this.isBlockedBy(block))) {
+    if (blocks.some((block) => this.isBlockedBy(block))) {
       return MyPRReviewStatus.NONE;
     }
 

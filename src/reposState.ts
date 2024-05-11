@@ -1,4 +1,4 @@
-import { CommentBlock, MyPrBlock, ReviewRequestBlock } from "./notMyTurnBlock";
+import { CommentBlock, MyPrBlock, ReviewRequestBlock } from "./block";
 import { Repo } from "./repo";
 import { RepoState } from "./repoState";
 import { Settings } from "./settings";
@@ -6,8 +6,8 @@ import {
   getCommentBlockList,
   getLastSyncDurationMillis,
   getMonitoringEnabledRepos,
-  getNotMyTurnBlockList,
-  getNotMyTurnReviewRequestBlockList,
+  getMyPrBlockList,
+  getReviewRequestBlockList,
   getSettings,
 } from "./storage";
 
@@ -27,19 +27,19 @@ export class ReposState {
 
   async updateIcon(
     monitoringEnabledRepos: Repo[] = undefined,
-    notMyTurnBlocks: MyPrBlock[] = undefined,
-    notMyTurnReviewRequestBlocks: ReviewRequestBlock[] = undefined,
+    myPrBlocks: MyPrBlock[] = undefined,
+    reviewRequestBlocks: ReviewRequestBlock[] = undefined,
     commentBlocks: CommentBlock[] = undefined,
     settings: Settings = undefined,
   ): Promise<SyncStatus> {
     if (!monitoringEnabledRepos) {
       monitoringEnabledRepos = await getMonitoringEnabledRepos();
     }
-    if (!notMyTurnBlocks) {
-      notMyTurnBlocks = await getNotMyTurnBlockList();
+    if (!myPrBlocks) {
+      myPrBlocks = await getMyPrBlockList();
     }
-    if (!notMyTurnReviewRequestBlocks) {
-      notMyTurnReviewRequestBlocks = await getNotMyTurnReviewRequestBlockList();
+    if (!reviewRequestBlocks) {
+      reviewRequestBlocks = await getReviewRequestBlockList();
     }
     if (!commentBlocks) {
       commentBlocks = await getCommentBlockList();
@@ -70,8 +70,8 @@ export class ReposState {
       syncStatus = Math.max(
         syncStatus,
         repoState.getSyncStatus(
-          notMyTurnBlocks,
-          notMyTurnReviewRequestBlocks,
+          myPrBlocks,
+          reviewRequestBlocks,
           commentBlocks,
           settings,
           lastSyncDurationMillis,
