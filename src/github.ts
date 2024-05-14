@@ -164,9 +164,20 @@ async function syncRequestsForMyReview(
     for (const arrayElement of pullsListResponse.data) {
       const pr = arrayElement as PullsListResponseDataType[0];
       if (pr.user.id == myGitHubUser.id) {
-        myPRsToSyncBuilder.push(pr);
+        if (!myPRsToSyncBuilder.some((prToSync) => prToSync.id === pr.id)) {
+          // interestingly returned PRs is not a consistent snapshot, there may be duplicates
+          myPRsToSyncBuilder.push(pr);
+        }
       } else {
         // Somebody else's PR
+        if (
+          requestsForMyReviewBuilder.some(
+            (reviewRequest) => reviewRequest.pr.url === pr.html_url,
+          )
+        ) {
+          // interestingly returned PRs is not a consistent snapshot, there may be duplicates
+          continue;
+        }
 
         let myReviewRequested = false;
         for (const reviewer of pr.requested_reviewers) {
