@@ -1,7 +1,7 @@
 import "../styles/popup.scss";
 import { Octokit } from "@octokit/rest";
-import { GitHubUser } from "./gitHubUser";
 import { CommentBlock, MyPrBlock, ReviewRequestBlock } from "./block";
+import { GitHubUser } from "./gitHubUser";
 import { Repo } from "./repo";
 import { RepoState } from "./repoState";
 import { ReasonNotIgnored, ReviewRequest } from "./reviewRequest";
@@ -13,13 +13,16 @@ import {
   addReviewRequestBlock,
   getCommentBlockList,
   getGitHubUser,
+  getHideLeaveExtensionReviewDiv,
+  getInstallationUnixMillis,
   getLastSyncDurationMillis,
   getMonitoringEnabledRepos,
   getMyPrBlockList,
-  getReviewRequestBlockList,
   getReposState,
+  getReviewRequestBlockList,
   getSettings,
   storeGitHubUser,
+  storeHideLeaveExtensionReviewDiv,
   storeSettings,
 } from "./storage";
 import { trySyncWithCredentials } from "./sync";
@@ -107,10 +110,36 @@ getGitHubUser()
         "Could not get GitHub user. GitHub GET /user returned: " + user,
       );
     }
+    // trigger:
+    maybeShowLeaveExtensionReview();
   })
   .catch((e) => {
     showError(e);
   });
+
+async function maybeShowLeaveExtensionReview() {
+  const hideLeaveExtensionReviewDiv = await getHideLeaveExtensionReviewDiv();
+  if (hideLeaveExtensionReviewDiv) {
+    return;
+  }
+
+  const installationUnixMillis = await getInstallationUnixMillis();
+  if (
+    !installationUnixMillis ||
+    (new Date().getTime() - installationUnixMillis) / 1000 / 60 / 60 / 24 > 14
+  ) {
+    const leaveExtensionReviewDiv = document.getElementById(
+      "leaveExtensionReview",
+    );
+    leaveExtensionReviewDiv.style.display = "block";
+    document
+      .getElementById("hideLeaveExtensionReviewButton")
+      .addEventListener("click", async () => {
+        await storeHideLeaveExtensionReviewDiv(true);
+        leaveExtensionReviewDiv.style.display = "none";
+      });
+  }
+}
 
 const BAD_CREDENTIALS_GITHUB_ERROR_MSG = "Bad credentials";
 

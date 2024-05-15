@@ -1,3 +1,4 @@
+import { getReposState, storeInstallationUnixMillis } from "./storage";
 import { trySync } from "./sync";
 
 chrome.runtime.onInstalled.addListener(async (details) => {
@@ -6,7 +7,14 @@ chrome.runtime.onInstalled.addListener(async (details) => {
       path: "icons/grey128.png",
     });
 
+    storeInstallationUnixMillis(new Date().getTime());
+
     console.log("Extension successfully installed!");
+  } else {
+    const reposState = await getReposState();
+    if (reposState) {
+      await reposState.updateIcon();
+    }
   }
 });
 

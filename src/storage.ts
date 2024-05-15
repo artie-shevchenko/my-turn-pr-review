@@ -118,7 +118,7 @@ export async function getGitHubUser(): Promise<GitHubUser> {
   return store.get();
 }
 
-// GitHubUser storage:
+// lastSyncDurationMillis storage:
 
 class LastSyncStats {
   lastSyncDurationMillis: number;
@@ -138,6 +138,58 @@ export async function storeLastSyncDurationMillis(
 export async function getLastSyncDurationMillis(): Promise<number> {
   const store = getBucket<LastSyncStats>("lastSyncDurationMillis", "local");
   return store.get().then((v) => v.lastSyncDurationMillis);
+}
+
+// Installation storage:
+
+class Installation {
+  installationUnixMillis: number;
+
+  constructor(installationUnixMillis: number) {
+    this.installationUnixMillis = installationUnixMillis;
+  }
+}
+
+export async function storeInstallationUnixMillis(
+  installationUnixMillis: number,
+) {
+  const store = getBucket<Installation>("installationUnixMillis", "sync");
+  return store.set(new Installation(installationUnixMillis));
+}
+
+export async function getInstallationUnixMillis(): Promise<number> {
+  const store = getBucket<Installation>("installationUnixMillis", "sync");
+  return store.get().then((v) => v.installationUnixMillis);
+}
+
+// hideLeaveExtensionReviewDiv storage:
+
+class HideLeaveExtensionReviewDiv {
+  hideLeaveExtensionReviewDiv: boolean;
+
+  constructor(hideLeaveExtensionReviewDiv: boolean) {
+    this.hideLeaveExtensionReviewDiv = hideLeaveExtensionReviewDiv;
+  }
+}
+
+export async function storeHideLeaveExtensionReviewDiv(
+  hideLeaveExtensionReviewDiv: boolean,
+) {
+  const store = getBucket<HideLeaveExtensionReviewDiv>(
+    "hideLeaveExtensionReviewDiv",
+    "local",
+  );
+  return store.set(
+    new HideLeaveExtensionReviewDiv(hideLeaveExtensionReviewDiv),
+  );
+}
+
+export async function getHideLeaveExtensionReviewDiv(): Promise<boolean> {
+  const store = getBucket<HideLeaveExtensionReviewDiv>(
+    "hideLeaveExtensionReviewDiv",
+    "local",
+  );
+  return store.get().then((v) => v.hideLeaveExtensionReviewDiv);
 }
 
 // Settings storage:
