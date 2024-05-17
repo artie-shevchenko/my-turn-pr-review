@@ -182,7 +182,7 @@ async function syncRequestsForMyReview(
         let myReviewRequested = false;
         for (const reviewer of pr.requested_reviewers) {
           if (reviewer.id === myGitHubUser.id) {
-            const reviewRequestedAtUnixMillis =
+            const reviewRequestedAtUnixMillisOpt =
               await getLatestReviewRequestedEventTimestamp(
                 pr,
                 repo,
@@ -190,7 +190,7 @@ async function syncRequestsForMyReview(
               );
             const reviewRequest = new ReviewRequest(
               new PR(pr.html_url, pr.title, pr.user.login, pr.draft),
-              reviewRequestedAtUnixMillis,
+              reviewRequestedAtUnixMillisOpt,
             );
             requestsForMyReviewBuilder.push(reviewRequest);
             myReviewRequested = true;
@@ -249,6 +249,10 @@ async function syncRequestsForMyReview(
   return requestsForMyReviewBuilder;
 }
 
+/**
+ * May return undefined if review_requested event not found (happens in particular when originally
+ * a team review was requested).
+ */
 async function getLatestReviewRequestedEventTimestamp(
   pr: PullsListResponseDataType[0],
   repo: RepoState,
@@ -265,7 +269,7 @@ async function getLatestReviewRequestedEventTimestamp(
       result = Math.max(result, new Date(event.created_at).getTime());
     }
   }
-  return result;
+  return result > 0 ? result : undefined;
 }
 
 /** Returns a review request if I left no real review, just "Add a single comment" maybe. */
@@ -274,13 +278,15 @@ async function maybeGetReviewRequest(
   repo: RepoState,
   myGitHubUser: GitHubUser,
 ) {
-  const lastMyReviewRequestedUnixMillis =
+  const lastMyReviewRequestedUnixMillisOpt =
     await getLatestReviewRequestedEventTimestamp(pr, repo, myGitHubUser.id);
 
   const reviewsAfterMyLastReviewRequested = (
     await listReviews(repo, pr.number)
   ).filter(
-    (v) => new Date(v.submitted_at).getTime() > lastMyReviewRequestedUnixMillis,
+    (v) =>
+      !lastMyReviewRequestedUnixMillisOpt ||
+      new Date(v.submitted_at).getTime() > lastMyReviewRequestedUnixMillisOpt,
   );
 
   let singleCommentReviewPresent = false;
@@ -312,7 +318,7 @@ async function maybeGetReviewRequest(
   // review that is indistinguishable from it.
   return new ReviewRequest(
     new PR(pr.html_url, pr.title, pr.user.login, pr.draft),
-    lastMyReviewRequestedUnixMillis,
+    lastMyReviewRequestedUnixMillisOpt,
     ReasonNotIgnored.LIKELY_JUST_SINGLE_COMMENT,
   );
 }

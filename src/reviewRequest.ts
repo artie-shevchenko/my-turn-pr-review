@@ -31,9 +31,15 @@ export class ReviewRequest {
     this.teamName = teamName;
   }
 
-  /* Is undefined for team review request. */
+  /* Is undefined for team review request (or if it was originally a team review request). */
   reviewRequestedAtUnixMillis() {
     return this.firstTimeObservedUnixMillis;
+  }
+
+  reviewRequestedAtUnixMillisOrZero() {
+    return this.firstTimeObservedUnixMillis
+      ? this.firstTimeObservedUnixMillis
+      : 0;
   }
 
   static of(v: ReviewRequest): ReviewRequest {
@@ -58,7 +64,7 @@ export class ReviewRequest {
 
   isBlockedBy(block: ReviewRequestBlock): boolean {
     return (
-      this.reviewRequestedAtUnixMillis() ===
+      this.reviewRequestedAtUnixMillisOrZero() ===
         block.reviewRequestedAtUnixMillis &&
       this.pr.url === block.prUrl &&
       (!block.expireAtUnixMillis ||

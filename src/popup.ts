@@ -396,7 +396,8 @@ async function populateFromState(
     .filter((reviewRequest) => !reviewRequest.isTeamReviewRequest())
     .sort(
       (a, b) =>
-        a.reviewRequestedAtUnixMillis() - b.reviewRequestedAtUnixMillis(),
+        a.reviewRequestedAtUnixMillisOrZero() -
+        b.reviewRequestedAtUnixMillisOrZero(),
     );
   const sortedRequestsForMyTeamReview = reviewRequests
     .filter((reviewRequest) => reviewRequest.isTeamReviewRequest())
@@ -494,11 +495,15 @@ async function populateFromState(
     authorCell.className = "authorColumn";
 
     const hoursCell = row.insertCell(columnIndex++);
-    hoursCell.innerHTML =
-      Math.floor(
-        (Date.now() - reviewRequest.reviewRequestedAtUnixMillis()) /
-          (1000 * 60 * 60),
-      ) + "h";
+    if (reviewRequest.reviewRequestedAtUnixMillis()) {
+      hoursCell.innerHTML =
+        Math.floor(
+          (Date.now() - reviewRequest.reviewRequestedAtUnixMillis()) /
+            (1000 * 60 * 60),
+        ) + "h";
+    } else {
+      hoursCell.innerHTML = "";
+    }
 
     addSnoozeCell(
       row,
@@ -529,7 +534,7 @@ async function populateFromState(
             addReviewRequestBlock(
               new ReviewRequestBlock(
                 reviewRequest.pr.url,
-                reviewRequest.reviewRequestedAtUnixMillis(),
+                reviewRequest.reviewRequestedAtUnixMillisOrZero(),
               ),
             ).then(() => updatePopupPage());
           });
@@ -587,7 +592,7 @@ async function populateFromState(
         addReviewRequestBlock(
           new ReviewRequestBlock(
             reviewRequest.pr.url,
-            reviewRequest.reviewRequestedAtUnixMillis(),
+            reviewRequest.reviewRequestedAtUnixMillisOrZero(),
           ),
         ).then(() => updatePopupPage());
       });
@@ -754,7 +759,7 @@ function addSnoozeCell(
     addReviewRequestBlock(
       new ReviewRequestBlock(
         reviewRequest.pr.url,
-        reviewRequest.reviewRequestedAtUnixMillis(),
+        reviewRequest.reviewRequestedAtUnixMillisOrZero(),
         expireDate.getTime(),
       ),
     ).then(() => updatePopupPage());

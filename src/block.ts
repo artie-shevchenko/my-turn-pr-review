@@ -14,17 +14,18 @@ export class MyPrBlock {
 // request for an indefinite time is not a good idea.
 export class ReviewRequestBlock {
   prUrl: string;
+  // Strictly speaking it's reviewRequestedAtUnixMillisOrZero
   reviewRequestedAtUnixMillis: number;
   // defined for snooze only
   expireAtUnixMillis?: number;
 
   constructor(
     prUrl: string,
-    reviewRequestedAtUnixMillis: number,
+    reviewRequestedAtUnixMillisOrZero: number,
     expireAtUnixMillis?: number,
   ) {
     this.prUrl = prUrl;
-    this.reviewRequestedAtUnixMillis = reviewRequestedAtUnixMillis;
+    this.reviewRequestedAtUnixMillis = reviewRequestedAtUnixMillisOrZero;
     this.expireAtUnixMillis = expireAtUnixMillis;
   }
 }
